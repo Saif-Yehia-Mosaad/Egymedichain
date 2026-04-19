@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, UserCheck, UserX } from 'lucide-react';
 import { usersApi } from '../../api/endpoints';
-import { Card, CardHeader, Badge, Button, Skeleton, EmptyState } from '../../components/ui';
-import { fmtDate, cn } from '../../utils';
+import { Button, Badge, Skeleton, EmptyState } from '../../components/ui';
+import { fmtDate } from '../../utils';
 import type { SystemUser, UserRole } from '../../types';
 
 const MOCK_USERS: SystemUser[] = [
@@ -12,44 +11,22 @@ const MOCK_USERS: SystemUser[] = [
   { id: 3, email: 'wh1@cairohub.eg', name: 'Ibrahim Saleh', phone: '01023456789', role: 'Warehouse', entityId: 2, entityName: 'Cairo Central Warehouse', isActive: true, createdAt: '2023-05-20' },
   { id: 4, email: 'ph1@nasrcity.eg', name: 'Dr. Sara Nabil', phone: '01234567890', role: 'Pharmacy', entityId: 3, entityName: 'Nasr City Pharmacy #1', isActive: true, createdAt: '2023-07-01' },
   { id: 5, email: 'ph2@giza.eg', name: 'Ahmed Fouad', phone: '01098765432', role: 'Pharmacy', entityId: 4, entityName: 'Giza Pharmacy #7', isActive: false, createdAt: '2023-09-12' },
-  { id: 6, email: 'mfr2@deltapharma.eg', name: 'Layla Mostafa', phone: '01187654321', role: 'Manufacturer', entityId: 5, entityName: 'Delta Pharma', isActive: true, createdAt: '2024-01-05' },
 ];
 
-const ROLE_COLOR: Record<UserRole, 'green' | 'blue' | 'purple' | 'orange' | 'gray'> = {
-  Ministry: 'purple',
-  Manufacturer: 'blue',
-  Warehouse: 'orange',
-  Pharmacy: 'green',
-  Consumer: 'gray',
-};
-
-const ROLE_INITIALS: Record<UserRole, string> = {
-  Ministry: 'MN',
-  Manufacturer: 'MF',
-  Warehouse: 'WH',
-  Pharmacy: 'PH',
-  Consumer: 'CS',
-};
-
-const AVATAR_BG: Record<UserRole, string> = {
-  Ministry: 'from-violet-400 to-violet-600',
-  Manufacturer: 'from-blue-400 to-blue-600',
-  Warehouse: 'from-orange-400 to-orange-600',
-  Pharmacy: 'from-emerald-400 to-emerald-600',
-  Consumer: 'from-slate-400 to-slate-600',
+const ROLE_COLORS: Record<UserRole, { badge: 'green' | 'blue' | 'orange' | 'purple' | 'gray'; gradient: string }> = {
+  Ministry: { badge: 'purple', gradient: 'from-violet-600 to-blue-700' },
+  Manufacturer: { badge: 'blue', gradient: 'from-blue-600 to-cyan-700' },
+  Warehouse: { badge: 'orange', gradient: 'from-amber-600 to-orange-700' },
+  Pharmacy: { badge: 'green', gradient: 'from-emerald-600 to-teal-700' },
+  Consumer: { badge: 'gray', gradient: 'from-slate-500 to-slate-700' },
 };
 
 export function UsersPage() {
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
+  const [showModal, setShowModal] = useState(false);
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', accessTier: 'Warehouse Administrator', node: 'Global Central Hub' });
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => usersApi.list(),
-    retry: false,
-  });
-
+  const { data, isLoading } = useQuery({ queryKey: ['users'], queryFn: () => usersApi.list(), retry: false });
   const users: SystemUser[] = data?.data ?? MOCK_USERS;
 
   const toggleMutation = useMutation({
@@ -57,107 +34,240 @@ export function UsersPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   });
 
-  const filtered = users.filter((u) => {
-    const matchSearch = !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.email.includes(search);
-    const matchRole = roleFilter === 'all' || u.role === roleFilter;
-    return matchSearch && matchRole;
-  });
-
-  const roleCounts = Object.entries(
-    users.reduce((acc, u) => { acc[u.role] = (acc[u.role] ?? 0) + 1; return acc; }, {} as Record<string, number>)
-  );
+  const stats = [
+    { label: 'Authorized Users', value: '1,102', sub: 'Across all logistics nodes', color: '#191c1e' },
+    { label: 'Active Today', value: '847', sub: 'In all global timezones', color: '#006e2f' },
+    { label: 'Pending Access', value: '14', sub: 'Awaiting biometric verification', color: '#b45309' },
+    { label: 'Revoked (30d)', value: '3', sub: 'Security-triggered revocations', color: '#ba1a1a' },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <>
+      <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-black text-slate-800">Users</h1>
-          <p className="text-slate-400 text-sm mt-0.5">System accounts and role management</p>
+          <h1 style={{ fontFamily: 'Manrope,sans-serif', fontWeight: 800, fontSize: '2rem', color: '#191c1e', letterSpacing: '-0.02em' }}>
+            User Ecosystem
+          </h1>
+          <p className="mt-2" style={{ color: '#3d4a3d', fontSize: '15px' }}>
+            Manage access protocols and logistics personnel authority.
+          </p>
+        </div>
+        <button onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm"
+          style={{ fontFamily: 'Manrope,sans-serif', background: 'linear-gradient(135deg,#006e2f,#0058be)', boxShadow: '0 4px 16px rgba(0,110,47,0.22)' }}>
+          <span className="material-symbols-outlined text-[18px]">person_add</span>
+          Provision New User
+        </button>
+
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-4">
+          {stats.map(s => (
+            <div key={s.label} className="card-clinical">
+              <p className="text-[11px] uppercase tracking-widest font-bold mb-1" style={{ color: '#6d7b6c' }}>{s.label}</p>
+              <p className="font-headline text-3xl font-black" style={{ fontFamily: 'Manrope,sans-serif', color: s.color }}>{s.value}</p>
+              <p className="text-[12px] mt-1" style={{ color: '#6d7b6c' }}>{s.sub}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Table */}
+        <div className="card-clinical overflow-hidden p-0">
+          <table className="w-full">
+            <thead>
+              <tr style={{ background: '#f7f9fb', borderBottom: '1px solid rgba(188,203,185,0.15)' }}>
+                {['User', 'Access Tier', 'Node Assignment', 'Last Active', 'Status', ''].map(h => (
+                  <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold uppercase tracking-widest" style={{ color: '#6d7b6c' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody style={{ borderCollapse: 'collapse' }}>
+              {isLoading ? Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}><td colSpan={6} className="px-5 py-4"><Skeleton className="h-8 w-full" /></td></tr>
+              )) : users.map(u => {
+                const rc = ROLE_COLORS[u.role];
+                const initials = u.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+                return (
+                  <tr key={u.id} className="transition-colors" style={{ borderBottom: '1px solid rgba(188,203,185,0.08)' }}>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${rc.gradient} flex items-center justify-center text-white font-black text-[11px]`} style={{ fontFamily: 'Manrope,sans-serif' }}>
+                          {initials}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-[13px]" style={{ color: '#191c1e' }}>{u.name}</p>
+                          <p className="text-[11px]" style={{ color: '#6d7b6c' }}>{u.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <Badge color={rc.badge}>{u.role}</Badge>
+                    </td>
+                    <td className="px-5 py-3 text-[13px]" style={{ color: '#6d7b6c' }}>{u.entityName}</td>
+                    <td className="px-5 py-3 text-[13px]" style={{ color: '#6d7b6c' }}>{fmtDate(u.createdAt, 'relative')}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full" style={{ background: u.isActive ? '#006e2f' : '#6d7b6c' }} />
+                        <span className="text-[12px] font-medium" style={{ color: u.isActive ? '#006e2f' : '#6d7b6c' }}>
+                          {u.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <button onClick={() => toggleMutation.mutate(u.id)}
+                        className="text-[12px] font-bold hover:underline"
+                        style={{ color: u.isActive ? '#ba1a1a' : '#006e2f' }}>
+                        {u.isActive ? 'Revoke' : 'Activate'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="flex justify-between items-center px-5 py-3" style={{ borderTop: '1px solid rgba(188,203,185,0.1)', background: '#f7f9fb' }}>
+            <p className="text-[12px]" style={{ color: '#6d7b6c' }}>Showing 1-15 of 1,102 users</p>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3].map(n => (
+                <button key={n} className="w-8 h-8 rounded-lg flex items-center justify-center text-[13px] font-medium transition-colors"
+                  style={{ background: n === 1 ? '#006e2f' : 'transparent', color: n === 1 ? 'white' : '#6d7b6c' }}>
+                  {n}
+                </button>
+              ))}
+              <button className="px-3 py-1.5 text-[12px] font-medium" style={{ color: '#6d7b6c' }}>Next →</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Role summary */}
-      <div className="flex flex-wrap gap-3">
-        {roleCounts.map(([role, count]) => (
-          <button
-            key={role}
-            onClick={() => setRoleFilter(roleFilter === role ? 'all' : role as UserRole)}
-            className={cn(
-              'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border transition-all',
-              roleFilter === role ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-            )}
-          >
-            <span>{role}</span>
-            <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-bold', roleFilter === role ? 'bg-white/20' : 'bg-slate-100')}>
-              {count}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-72">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or email…"
-          className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
-        />
-      </div>
-
-      {/* User cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {isLoading
-          ? Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 flex gap-4">
-              <Skeleton className="w-12 h-12 rounded-2xl flex-shrink-0" />
-              <div className="flex-1 space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>
+      {/* ─── New Protocol Provisioning Modal ─────────────────── */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(25,28,30,0.35)', backdropFilter: 'blur(4px)' }}>
+          <div className="relative bg-white rounded-2xl w-full max-w-[560px] mx-4" style={{ boxShadow: '0 24px 80px rgba(0,0,0,0.15)' }}>
+            {/* Header */}
+            <div className="flex items-start justify-between p-8 pb-6">
+              <div>
+                <h2 style={{ fontFamily: 'Manrope,sans-serif', fontWeight: 900, fontSize: '1.375rem', color: '#191c1e', letterSpacing: '-0.01em' }}>
+                  New Protocol Provisioning
+                </h2>
+                <p className="mt-1 text-sm" style={{ color: '#6d7b6c' }}>Add a new authenticated user to the BioChain ecosystem.</p>
+              </div>
+              <button onClick={() => setShowModal(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors mt-0.5"
+                style={{ background: '#f2f4f6', color: '#6d7b6c' }}>
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
             </div>
-          ))
-          : filtered.length === 0 ? (
-            <div className="col-span-full">
-              <EmptyState title="No users found" description="Try adjusting the search or filter" />
-            </div>
-          ) : (
-            filtered.map((user) => (
-              <div key={user.id} className={cn('rounded-2xl border bg-white p-5 hover:shadow-md transition-all', !user.isActive && 'opacity-60')}>
-                <div className="flex items-start gap-3">
-                  <div className={cn('w-12 h-12 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white text-sm font-black flex-shrink-0 shadow-md', AVATAR_BG[user.role])}>
-                    {ROLE_INITIALS[user.role]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-800 truncate">{user.name}</p>
-                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      <Badge color={ROLE_COLOR[user.role]}>{user.role}</Badge>
-                      <Badge color={user.isActive ? 'green' : 'gray'}>{user.isActive ? 'Active' : 'Inactive'}</Badge>
+
+            <div className="px-8 pb-8 space-y-5">
+              {/* First + Last Name */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: '#6d7b6c' }}>First Name</label>
+                  <input
+                    value={newUser.firstName}
+                    onChange={e => setNewUser(p => ({ ...p, firstName: e.target.value }))}
+                    placeholder="e.g. Julian"
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                    style={{ background: '#f2f4f6', border: '1px solid #eceef0', color: '#191c1e' }}
+                    onFocus={e => { e.target.style.background = 'white'; e.target.style.boxShadow = '0 0 0 3px rgba(0,88,190,0.12)'; }}
+                    onBlur={e => { e.target.style.background = '#f2f4f6'; e.target.style.boxShadow = 'none'; }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: '#6d7b6c' }}>Last Name</label>
+                  <input
+                    value={newUser.lastName}
+                    onChange={e => setNewUser(p => ({ ...p, lastName: e.target.value }))}
+                    placeholder="e.g. Sterling"
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                    style={{ background: '#f2f4f6', border: '1px solid #eceef0', color: '#191c1e' }}
+                    onFocus={e => { e.target.style.background = 'white'; e.target.style.boxShadow = '0 0 0 3px rgba(0,88,190,0.12)'; }}
+                    onBlur={e => { e.target.style.background = '#f2f4f6'; e.target.style.boxShadow = 'none'; }}
+                  />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: '#6d7b6c' }}>Authorized Email</label>
+                <input
+                  value={newUser.email}
+                  onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))}
+                  placeholder="j.sterling@biochain.io"
+                  type="email"
+                  className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                  style={{ background: '#f2f4f6', border: '1px solid #eceef0', color: '#191c1e' }}
+                  onFocus={e => { e.target.style.background = 'white'; e.target.style.boxShadow = '0 0 0 3px rgba(0,88,190,0.12)'; }}
+                  onBlur={e => { e.target.style.background = '#f2f4f6'; e.target.style.boxShadow = 'none'; }}
+                />
+              </div>
+
+              {/* Access Tier + Node */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: '#6d7b6c' }}>Access Tier</label>
+                  <div className="relative">
+                    <select
+                      value={newUser.accessTier}
+                      onChange={e => setNewUser(p => ({ ...p, accessTier: e.target.value }))}
+                      className="w-full rounded-xl px-4 py-3 text-sm outline-none appearance-none cursor-pointer"
+                      style={{ background: '#f2f4f6', border: '1px solid #eceef0', color: '#191c1e', paddingRight: '2.5rem' }}>
+                      <option>Warehouse Administrator</option>
+                      <option>Logistics Lead</option>
+                      <option>Pharmacy Admin</option>
+                      <option>Auditor</option>
+                      <option>Ministry Access</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                      <span className="material-symbols-outlined text-[18px]" style={{ color: '#6d7b6c' }}>expand_more</span>
                     </div>
                   </div>
                 </div>
-
-                <div className="mt-4 pt-4 border-t border-slate-100 space-y-1.5">
-                  <p className="text-xs text-slate-400">Entity: <span className="font-semibold text-slate-600">{user.entityName}</span></p>
-                  <p className="text-xs text-slate-400">Phone: <span className="font-semibold text-slate-600">{user.phone}</span></p>
-                  <p className="text-xs text-slate-400">Joined: <span className="font-semibold text-slate-600">{fmtDate(user.createdAt)}</span></p>
-                </div>
-
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    size="sm"
-                    variant={user.isActive ? 'danger' : 'ghost'}
-                    leftIcon={user.isActive ? <UserX size={12} /> : <UserCheck size={12} />}
-                    isLoading={toggleMutation.isPending}
-                    onClick={() => toggleMutation.mutate(user.id)}
-                    className="flex-1 justify-center"
-                  >
-                    {user.isActive ? 'Deactivate' : 'Activate'}
-                  </Button>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: '#6d7b6c' }}>Node Assignment</label>
+                  <div className="relative">
+                    <select
+                      value={newUser.node}
+                      onChange={e => setNewUser(p => ({ ...p, node: e.target.value }))}
+                      className="w-full rounded-xl px-4 py-3 text-sm outline-none appearance-none cursor-pointer"
+                      style={{ background: '#f2f4f6', border: '1px solid #eceef0', color: '#191c1e', paddingRight: '2.5rem' }}>
+                      <option>Global Central Hub</option>
+                      <option>North Bio-Hub Alpha</option>
+                      <option>Pacific Distribution Center</option>
+                      <option>Cairo Central Warehouse</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                      <span className="material-symbols-outlined text-[18px]" style={{ color: '#6d7b6c' }}>expand_more</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            ))
-          )}
-      </div>
-    </div>
+
+              {/* Security note */}
+              <div className="flex items-start gap-3 p-4 rounded-xl" style={{ background: 'rgba(0,110,47,0.06)', border: '1px solid rgba(0,110,47,0.12)' }}>
+                <span className="material-symbols-outlined text-[18px] flex-shrink-0 mt-0.5" style={{ color: '#006e2f' }}>security</span>
+                <p className="text-[13px] leading-relaxed" style={{ color: '#3d4a3d' }}>
+                  A secure cryptographic invitation will be dispatched to the provided email. The user must complete biometric verification within 24 hours to finalize activation.
+                </p>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setShowModal(false)}
+                  className="flex-1 py-3.5 rounded-xl font-bold text-sm transition-all border"
+                  style={{ fontFamily: 'Manrope,sans-serif', background: 'white', color: '#191c1e', borderColor: '#eceef0' }}>
+                  Cancel
+                </button>
+                <button
+                  className="flex-1 py-3.5 rounded-xl font-bold text-sm text-white transition-all"
+                  style={{ fontFamily: 'Manrope,sans-serif', background: 'linear-gradient(135deg,#006e2f,#0058be)', boxShadow: '0 4px 16px rgba(0,110,47,0.22)' }}>
+                  Execute Provisioning
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
