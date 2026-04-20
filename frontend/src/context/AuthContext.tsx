@@ -30,6 +30,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (payload: LoginPayload) => {
     setIsLoading(true);
     try {
+      // ── MOCK LOGIN — شيله لما يكون Backend جاهز ──────────
+      const mockUser: AuthUser = {
+        id: 1,
+        email: payload.email,
+        name: 'Dr. Amira Hassan',
+        role: 'Ministry',
+        entityId: 0,
+        entityName: 'Ministry of Health',
+      };
+      tokenStore.setTokens('mock_access_token', 'mock_refresh_token');
+      localStorage.setItem('egm_user', JSON.stringify(mockUser));
+      setUser(mockUser);
+      return;
+      // ── END MOCK ─────────────────────────────────────────
+
+      // الكود ده هيشتغل بعد ما تشيل الـ Mock فوق
       const result = await authApi.login(payload);
       tokenStore.setTokens(result.accessToken, result.refreshToken);
       localStorage.setItem('egm_user', JSON.stringify(result.user));
