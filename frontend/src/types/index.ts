@@ -1,4 +1,3 @@
-// ─── Auth & Users ────────────────────────────────────────────
 export type UserRole = 'Ministry' | 'Manufacturer' | 'Warehouse' | 'Pharmacy' | 'Consumer';
 
 export interface AuthUser {
@@ -10,12 +9,28 @@ export interface AuthUser {
   entityName: string;
 }
 
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
+export interface LoginPayload { email: string; password: string; }
+export interface ForgotPasswordPayload { email: string; }
+export interface VerifyCodePayload { email: string; code: string; }
+export interface ResetPasswordPayload { email: string; token: string; newPassword: string; confirmPassword: string; }
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  role: UserRole;
+  nationalId?: string;
+  commercialRegistry?: string;
+  factoryLicense?: string;
+  warehouseLicense?: string;
+  governorate?: string;
+  pharmacyLicense?: string;
+  syndicateNumber?: string;
+  walletAddress?: string;
 }
 
+export interface OtpVerifyPayload { email: string; otp: string; }
 export interface LoginPayload { email: string; password: string; }
 export interface ForgotPasswordPayload { email: string; }
 export interface VerifyCodePayload { email: string; code: string; }
