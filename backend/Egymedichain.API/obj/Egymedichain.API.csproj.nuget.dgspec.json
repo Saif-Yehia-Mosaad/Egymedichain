@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "E:\\Downloads\\egymedichain-source\\egymedichain\\backend\\Egymedichain.API\\Egymedichain.API.csproj": {}
+    "D:\\egyMedChain\\backend\\Egymedichain.API\\Egymedichain.API.csproj": {}
   },
   "projects": {
-    "E:\\Downloads\\egymedichain-source\\egymedichain\\backend\\Egymedichain.API\\Egymedichain.API.csproj": {
+    "D:\\egyMedChain\\backend\\Egymedichain.API\\Egymedichain.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "E:\\Downloads\\egymedichain-source\\egymedichain\\backend\\Egymedichain.API\\Egymedichain.API.csproj",
+        "projectUniqueName": "D:\\egyMedChain\\backend\\Egymedichain.API\\Egymedichain.API.csproj",
         "projectName": "Egymedichain.API",
-        "projectPath": "E:\\Downloads\\egymedichain-source\\egymedichain\\backend\\Egymedichain.API\\Egymedichain.API.csproj",
-        "packagesPath": "C:\\Users\\Hi-Tech\\.nuget\\packages\\",
-        "outputPath": "E:\\Downloads\\egymedichain-source\\egymedichain\\backend\\Egymedichain.API\\obj\\",
+        "projectPath": "D:\\egyMedChain\\backend\\Egymedichain.API\\Egymedichain.API.csproj",
+        "packagesPath": "C:\\Users\\dell\\.nuget\\packages\\",
+        "outputPath": "D:\\egyMedChain\\backend\\Egymedichain.API\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\Hi-Tech\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\dell\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -45,7 +45,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net10.0": {
@@ -75,7 +75,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.AspNetCore": "(,10.0.32767]",
             "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",
