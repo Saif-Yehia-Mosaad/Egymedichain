@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Egymedichain.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9d3981821191475ce107883c7fd078b2b6ed374c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e56d97f32e9b2a47d4052243ce39feefc33878b8")]
 [assembly: System.Reflection.AssemblyProductAttribute("Egymedichain.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Egymedichain.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
