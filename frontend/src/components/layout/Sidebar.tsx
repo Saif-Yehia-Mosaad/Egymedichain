@@ -3,175 +3,230 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Pill, Package, Warehouse, Store,
   ArrowLeftRight, Bell, Users, ClipboardList, Settings,
-  ChevronLeft, ChevronRight, ShieldCheck, Menu, X,
+  ChevronLeft, ChevronRight, ShieldCheck,
 } from 'lucide-react';
-import { useAuth }  from '../../context/AuthContext';
-import { cn }       from '../../utils';
+import { useAuth } from '../../context/AuthContext';
 
 const NAV_ITEMS = [
-  { path:'/dashboard',    label:'Dashboard',    icon:<LayoutDashboard size={16} /> },
-  { path:'/medicines',    label:'Medicines',    icon:<Pill size={16} />,           roles:['Ministry','Manufacturer','Warehouse'] },
-  { path:'/inventory',    label:'Inventory',    icon:<Package size={16} /> },
-  { path:'/warehouses',   label:'Warehouses',   icon:<Warehouse size={16} />,      roles:['Ministry','Warehouse'] },
-  { path:'/pharmacy',     label:'Pharmacy',     icon:<Store size={16} />,          roles:['Ministry','Pharmacy'] },
-  { path:'/transactions', label:'Transactions', icon:<ArrowLeftRight size={16} /> },
-  { path:'/alerts',       label:'Alerts',       icon:<Bell size={16} /> },
-  { path:'/users',        label:'Users',        icon:<Users size={16} />,          roles:['Ministry'] },
-  { path:'/audit',        label:'Audit Logs',   icon:<ClipboardList size={16} />, roles:['Ministry'] },
-  { path:'/settings',     label:'Settings',     icon:<Settings size={16} /> },
+  { path: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
+  { path: '/medicines',    label: 'Medicines',    icon: Pill,           roles: ['Ministry','Manufacturer','Warehouse'] },
+  { path: '/inventory',    label: 'Inventory',    icon: Package },
+  { path: '/warehouses',   label: 'Warehouses',   icon: Warehouse,      roles: ['Ministry','Warehouse'] },
+  { path: '/pharmacy',     label: 'Pharmacy',     icon: Store,          roles: ['Ministry','Pharmacy'] },
+  { path: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+  { path: '/alerts',       label: 'Alerts',       icon: Bell },
+  { path: '/users',        label: 'Users',        icon: Users,          roles: ['Ministry'] },
+  { path: '/audit',        label: 'Audit Logs',   icon: ClipboardList, roles: ['Ministry'] },
+  { path: '/settings',     label: 'Settings',     icon: Settings },
 ];
 
-const ROLE_GRAD: Record<string, string> = {
-  Ministry:'from-violet-600 to-blue-700', Manufacturer:'from-blue-600 to-cyan-700',
-  Warehouse:'from-amber-600 to-orange-700', Pharmacy:'from-emerald-600 to-teal-700',
-};
+export function Sidebar({
+  alertCount = 0,
+  mobileOpen = false,
+  onMobileClose,
+}: {
+  alertCount?: number;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const { user } = useAuth();
 
-export function Sidebar({ alertCount = 0 }: { alertCount?: number }) {
-  const [collapsed, setCollapsed]   = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const { user }    = useAuth();
-  const items       = NAV_ITEMS.filter(i => !i.roles || (user && i.roles.includes(user.role)));
-  const initials    = user?.name?.split(' ').map((w:string) => w[0]).slice(0,2).join('').toUpperCase() ?? 'U';
+  const items = NAV_ITEMS.filter(i =>
+    !i.roles || (user && i.roles.includes(user.role))
+  );
 
-  /* ── shared nav content ────────────────────────────────────── */
-  const NavContent = ({ onNavClick }: { onNavClick?: () => void }) => (
-    <>
-      {/* Logo */}
-      <div className={cn(
-        'flex items-center gap-3 px-4 py-4',
-        'border-b border-[var(--border)]',
-        collapsed && !onNavClick && 'justify-center px-2'
-      )}>
-        <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-gradient-to-br from-[#006e2f] to-[#0058be] flex items-center justify-center shadow-[0_4px_10px_rgba(0,110,47,.3)]">
-          <ShieldCheck size={16} className="text-white" />
+  const initials = user?.name
+    ?.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() ?? 'U';
+
+  const roleColors: Record<string, string> = {
+    Ministry:     '#818cf8',
+    Manufacturer: '#38bdf8',
+    Warehouse:    '#fbbf24',
+    Pharmacy:     '#10d9a0',
+  };
+  const roleColor = roleColors[user?.role ?? ''] ?? '#10d9a0';
+
+  return (
+    <aside
+      className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}
+    >
+      {/* ── Logo ── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: collapsed ? 0 : 10,
+        padding: collapsed ? '18px 0' : '18px 16px',
+        justifyContent: collapsed ? 'center' : 'flex-start',
+        borderBottom: '1px solid var(--bd)',
+        flexShrink: 0,
+      }}>
+        <div style={{
+          width: 34, height: 34,
+          borderRadius: 10,
+          background: 'linear-gradient(135deg,#10d9a0,#0aaf82)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+          boxShadow: '0 0 16px rgba(16,217,160,.3)',
+        }}>
+          <ShieldCheck size={17} color="#07120e" />
         </div>
-        {(!collapsed || onNavClick) && (
-          <div className="overflow-hidden">
-            <p className="font-black text-[14px] leading-tight whitespace-nowrap" style={{ fontFamily:'Manrope,sans-serif', color:'var(--text)' }}>
-              EgyMediChain
-            </p>
-            <p className="text-[10px] font-semibold whitespace-nowrap uppercase tracking-widest" style={{ color:'var(--text-muted)' }}>
-              Supply Chain Gov.
-            </p>
+        {!collapsed && (
+          <div style={{ overflow: 'hidden' }}>
+            <div style={{
+              fontFamily: 'Syne, sans-serif',
+              fontWeight: 800,
+              fontSize: 15,
+              color: 'var(--tx)',
+              whiteSpace: 'nowrap',
+              letterSpacing: '-.02em',
+            }}>EgyMediChain</div>
+            <div style={{
+              fontSize: 9.5,
+              color: 'var(--tx-3)',
+              textTransform: 'uppercase',
+              letterSpacing: '.08em',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              marginTop: 1,
+            }}>Supply Chain Gov.</div>
           </div>
         )}
       </div>
 
-      {/* Nav items */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {items.map(item => (
-          <NavLink key={item.path} to={item.path}
-            onClick={onNavClick}
-            title={collapsed && !onNavClick ? item.label : undefined}
-            className={({ isActive }) => cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150 relative group',
-              isActive
-                ? 'bg-[var(--bg-card)] font-bold shadow-[var(--shadow-card)]'
-                : 'hover:bg-[var(--bg-surface-2)]',
-              (collapsed && !onNavClick) && 'justify-center px-0'
-            )}
-            style={({ isActive }) => ({ color: isActive ? '#006e2f' : 'var(--text-muted)' })}
-          >
-            <span className="flex-shrink-0">{item.icon}</span>
-            {(!collapsed || onNavClick) && <span className="truncate flex-1">{item.label}</span>}
-            {(!collapsed || onNavClick) && item.path === '/alerts' && alertCount > 0 && (
-              <span className="ml-auto bg-[#ba1a1a] text-white text-[10px] font-black rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
-                {alertCount > 99 ? '99+' : alertCount}
-              </span>
-            )}
-            {/* Tooltip when collapsed */}
-            {collapsed && !onNavClick && (
-              <div className="absolute left-12 px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none text-xs font-medium"
-                style={{ background:'var(--bg-card)', color:'var(--text)', boxShadow:'var(--shadow-card)', border:'1px solid var(--border)' }}>
-                {item.label}
-              </div>
-            )}
-          </NavLink>
-        ))}
+      {/* ── Nav ── */}
+      <nav style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        padding: '12px 8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+      }}>
+        {items.map(item => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={onMobileClose}
+              title={collapsed ? item.label : undefined}
+              className={({ isActive }) =>
+                `nav-item${isActive ? ' active' : ''}`
+              }
+              style={{ justifyContent: collapsed ? 'center' : 'flex-start', position: 'relative' }}
+            >
+              <Icon size={16} className="nav-icon" style={{ flexShrink: 0 }} />
+              {!collapsed && (
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {item.label}
+                </span>
+              )}
+              {!collapsed && item.path === '/alerts' && alertCount > 0 && (
+                <span style={{
+                  background: '#f87171',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  borderRadius: 99,
+                  padding: '1px 6px',
+                  minWidth: 18,
+                  textAlign: 'center',
+                }}>
+                  {alertCount > 99 ? '99+' : alertCount}
+                </span>
+              )}
+              {/* Tooltip when collapsed */}
+              {collapsed && (
+                <span style={{
+                  position: 'absolute',
+                  left: 54,
+                  background: 'var(--bg-5)',
+                  color: 'var(--tx)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  padding: '5px 10px',
+                  borderRadius: 8,
+                  whiteSpace: 'nowrap',
+                  pointerEvents: 'none',
+                  opacity: 0,
+                  border: '1px solid var(--bd-2)',
+                  zIndex: 100,
+                  transition: 'opacity .15s',
+                }}>
+                  {item.label}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
-      {/* User chip */}
-      {(!collapsed || onNavClick) && user && (
-        <div className="m-3 p-3 rounded-xl flex items-center gap-2.5" style={{ background:'var(--bg-surface)' }}>
-          <div className={cn('w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center text-white font-black text-[11px] flex-shrink-0', ROLE_GRAD[user.role] ?? 'from-slate-500 to-slate-700')}
-            style={{ fontFamily:'Manrope,sans-serif' }}>
+      {/* ── User chip ── */}
+      {!collapsed && user && (
+        <div style={{
+          margin: '0 8px 12px',
+          padding: '10px 12px',
+          background: 'var(--bg-4)',
+          borderRadius: 10,
+          border: '1px solid var(--bd)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexShrink: 0,
+        }}>
+          <div style={{
+            width: 32, height: 32,
+            borderRadius: 8,
+            background: `${roleColor}22`,
+            border: `1px solid ${roleColor}44`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: 'Syne, sans-serif',
+            fontWeight: 700,
+            fontSize: 12,
+            color: roleColor,
+            flexShrink: 0,
+          }}>
             {initials}
           </div>
-          <div className="overflow-hidden min-w-0">
-            <p className="text-[12px] font-bold truncate" style={{ color:'var(--text)' }}>{user.name}</p>
-            <p className="text-[10px] truncate" style={{ color:'var(--text-muted)' }}>{user.role}</p>
+          <div style={{ overflow: 'hidden', flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user.name}
+            </div>
+            <div style={{ fontSize: 10.5, color: roleColor, fontWeight: 500, whiteSpace: 'nowrap' }}>
+              {user.role}
+            </div>
           </div>
         </div>
       )}
-    </>
-  );
 
-  return (
-    <>
-      {/* ── Mobile hamburger (top-left, only shows when drawer closed) ── */}
-      {!drawerOpen && (
-        <button
-          className="lg:hidden fixed top-3 left-3 z-50 w-9 h-9 flex items-center justify-center rounded-xl transition-colors"
-          style={{ background:'var(--bg-card)', boxShadow:'var(--shadow-card)', color:'var(--text)' }}
-          onClick={() => setDrawerOpen(true)}
-        >
-          <Menu size={18} />
-        </button>
-      )}
-
-      {/* ── Mobile overlay ── */}
-      {drawerOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-          onClick={() => setDrawerOpen(false)} />
-      )}
-
-      {/* ── Mobile drawer ── */}
-      <aside
-        className={cn(
-          'lg:hidden fixed left-0 top-0 bottom-0 z-40 flex flex-col w-[220px] transition-transform duration-300',
-        )}
+      {/* ── Collapse toggle (desktop only) ── */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
         style={{
-          background: 'var(--sidebar-bg)',
-          borderRight: '1px solid var(--border)',
-          transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+          position: 'absolute',
+          top: 70,
+          right: -12,
+          width: 24,
+          height: 24,
+          borderRadius: '50%',
+          background: 'var(--bg-4)',
+          border: '1px solid var(--bd-2)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 40,
+          color: 'var(--tx-2)',
+          transition: 'background .15s',
         }}
+        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-5)')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-4)')}
+        className="[display:none] lg:[display:flex]"
       >
-        {/* Close btn */}
-        <button
-          onClick={() => setDrawerOpen(false)}
-          className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
-          style={{ background:'var(--bg-surface)', color:'var(--text-muted)' }}
-        >
-          <X size={14} />
-        </button>
-        <NavContent onNavClick={() => setDrawerOpen(false)} />
-      </aside>
-
-      {/* ── Desktop sidebar ── */}
-      <aside
-        className="hidden lg:flex flex-col h-full flex-shrink-0 relative transition-all duration-300"
-        style={{
-          width: collapsed ? '64px' : '210px',
-          background: 'var(--sidebar-bg)',
-          borderRight: '1px solid var(--border)',
-        }}
-      >
-        <NavContent />
-
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          className="absolute -right-3 top-16 w-6 h-6 rounded-full flex items-center justify-center z-20 transition-colors"
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-muted)',
-            boxShadow: 'var(--shadow-card)',
-          }}
-        >
-          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-        </button>
-      </aside>
-    </>
+        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+      </button>
+    </aside>
   );
 }

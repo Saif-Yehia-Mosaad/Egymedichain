@@ -90,7 +90,7 @@ export function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 lg:gap-4">
         {isLoading
           ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
           : kpis.map((kpi) => (
@@ -106,8 +106,7 @@ export function DashboardPage() {
       </div>
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Transfer trend */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2">
           <CardHeader title="Transfer Activity" subtitle="Daily transfers — last 14 days" action={
             <Badge color="blue"><TrendingUp size={10} className="inline mr-1" />Trending up</Badge>
@@ -146,7 +145,7 @@ export function DashboardPage() {
               </PieChart>
             </ResponsiveContainer>
           )}
-          <div className="grid grid-cols-2 gap-1.5 mt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {stats.alertsByType.map((a, i) => (
               <div key={a.type} className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />

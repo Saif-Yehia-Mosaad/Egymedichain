@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { authApi } from '../../api/endpoints';
+import { Button, Input } from '../../components/ui';
 import type { UserRole } from '../../types';
 
 // ─── Design tokens ───────────────────────────────────────────────
@@ -29,21 +30,35 @@ const inputCls = `
 const inputWithIcon = `${inputCls} pl-11`;
 
 // ─── Shared split layout ─────────────────────────────────────────
-function AuthShell({ panel, children }: { panel: React.ReactNode; children: React.ReactNode }) {
+// ─── Shared Layout ───────────────────────────────────────────────
+function AuthShell({
+  left, children,
+}: { left: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex bg-white">
-      {/* Left panel — hidden on mobile */}
-      <div className="hidden lg:flex lg:w-[48%] xl:w-[44%] relative overflow-hidden flex-shrink-0"
-        style={{ background: 'linear-gradient(160deg,#031a10 0%,#0a2a1a 45%,#051528 100%)' }}>
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background: 'radial-gradient(ellipse at 35% 55%,rgba(0,200,90,.22) 0%,transparent 58%),' +
-            'radial-gradient(ellipse at 80% 15%,rgba(0,88,190,.18) 0%,transparent 52%)',
-        }} />
-        <div className="relative z-10 w-full flex flex-col p-10 xl:p-14">{panel}</div>
+    <div className="min-h-screen flex" style={{ background: 'var(--bg, #f7f9fb)' }}>
+      {/* Left dark panel — hidden on mobile/tablet */}
+      <div
+        className="hidden lg:flex lg:w-[48%] xl:w-[44%] flex-col flex-shrink-0 relative overflow-hidden"
+        style={{ background: 'linear-gradient(160deg,#031a10 0%,#0a2a1a 40%,#051528 100%)' }}
+      >
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(ellipse at 35% 55%,rgba(0,200,90,.22) 0%,transparent 58%),' +
+              'radial-gradient(ellipse at 80% 15%,rgba(0,88,190,.18) 0%,transparent 52%)',
+          }}
+        />
+        <div className="relative z-10 w-full h-full flex flex-col p-8 xl:p-12 overflow-y-auto">
+          {left}
+        </div>
       </div>
-      {/* Right form panel */}
-      <div className="flex-1 flex items-center justify-center overflow-y-auto px-5 py-10 sm:px-10 lg:px-14">
-        <div className="w-full max-w-md">{children}</div>
+
+      {/* Right form panel — full width on mobile, flex-1 on desktop */}
+      <div className="flex-1 flex items-center justify-center min-h-screen overflow-y-auto px-4 py-8 sm:px-8 lg:px-12">
+        <div className="w-full max-w-[420px]">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -64,109 +79,180 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Password required'),
 });
 
+type LoginForm = z.infer<typeof loginSchema>;
+
 export function LoginPage() {
-  const { login, roleHome } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const [showPw, setShowPw] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+  const [error, setError] = useState<string | null>(null);
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: any) => {
-    setApiError(null);
-    try { await login(data); navigate(roleHome); }
-    catch { setApiError('Invalid credentials. Please check your email and password.'); }
+  const onSubmit = async (data: LoginForm) => {
+    setError(null);
+    try { await login(data); navigate('/dashboard'); }
+    catch { setError('Invalid credentials. Please try again.'); }
   };
 
   return (
-    <AuthShell panel={
-      <>
-        <div className="flex items-center gap-3 mb-auto">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}>
-            <Shield size={18} className="text-white" />
+    <AuthShell left={
+      <div className="flex flex-col justify-between h-full">
+        {/* Logo */}
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center flex-shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
           </div>
-          <span className="font-black text-white text-[15px]" style={{ fontFamily: 'Manrope,sans-serif' }}>EgyMediChain</span>
+          <span className="font-black text-white text-[15px]" style={{ fontFamily: 'Manrope,sans-serif' }}>
+            EgyMediChain
+          </span>
         </div>
-        <div className="mt-auto">
-          <h1 className="font-black text-5xl text-white leading-[1.08] mb-5" style={{ fontFamily: 'Manrope,sans-serif' }}>
-            Integrity in<br />every <span style={{ color: '#4ae176' }}>molecular</span><br />link.
+
+        {/* Main content */}
+        <div className="my-auto py-8">
+          <h1
+            className="font-black text-white leading-tight mb-5"
+            style={{
+              fontFamily: 'Manrope,sans-serif',
+              fontSize: 'clamp(1.75rem, 3vw, 3rem)',
+            }}
+          >
+            Integrity in every{' '}
+            <span style={{ color: '#4ae176' }}>molecular</span> link.
           </h1>
-          <p className="text-[14px] leading-relaxed max-w-[340px]" style={{ color: 'rgba(255,255,255,.5)' }}>
+          <p className="text-sm leading-relaxed max-w-sm" style={{ color: 'rgba(255,255,255,.5)' }}>
             Egypt's national pharmaceutical supply chain management system — securing every step from manufacturer to patient.
           </p>
-          <div className="flex gap-10 mt-10 pt-8 border-t border-white/10">
+
+          {/* Stats */}
+          <div
+            className="flex flex-wrap gap-x-8 gap-y-4 mt-8 pt-8"
+            style={{ borderTop: '1px solid rgba(255,255,255,.1)' }}
+          >
             {[['99.9%', 'Uptime'], ['2.4M', 'Batches Verified'], ['61K+', 'Active Pharmacies']].map(([v, l]) => (
               <div key={l}>
-                <p className="font-black text-2xl text-white" style={{ fontFamily: 'Manrope,sans-serif' }}>{v}</p>
-                <p className="text-[11px] uppercase tracking-widest mt-1" style={{ color: 'rgba(255,255,255,.3)', fontWeight: 600 }}>{l}</p>
+                <p className="font-black text-white text-2xl" style={{ fontFamily: 'Manrope,sans-serif' }}>{v}</p>
+                <p className="text-[11px] uppercase tracking-widest mt-0.5 font-semibold" style={{ color: 'rgba(255,255,255,.3)' }}>
+                  {l}
+                </p>
               </div>
             ))}
           </div>
         </div>
-      </>
+
+        {/* Footer */}
+        <p className="text-[10px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,.2)' }}>
+          © 2025 EgyMediChain · Ministry of Health Egypt
+        </p>
+      </div>
     }>
       {/* Mobile logo */}
       <div className="flex items-center gap-2 mb-8 lg:hidden">
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#006e2f,#0058be)' }}>
-          <Shield size={16} className="text-white" />
+        <div
+          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg,#006e2f,#0058be)' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
         </div>
-        <span className="font-black text-[#191c1e] text-[15px]" style={{ fontFamily: 'Manrope,sans-serif' }}>EgyMediChain</span>
+        <span className="font-black text-[15px]" style={{ fontFamily: 'Manrope,sans-serif', color: 'var(--text,#191c1e)' }}>
+          EgyMediChain
+        </span>
       </div>
 
-      <h2 className="font-black text-3xl text-[#191c1e] mb-1.5" style={{ fontFamily: 'Manrope,sans-serif' }}>Welcome Back</h2>
-      <p className="text-[14px] text-[#6d7b6c] mb-8">Access your pharmaceutical logistics dashboard.</p>
+      <h2
+        className="font-black mb-1"
+        style={{ fontFamily: 'Manrope,sans-serif', fontSize: '1.75rem', color: 'var(--text,#191c1e)' }}
+      >
+        Welcome Back
+      </h2>
+      <p className="text-sm mb-8" style={{ color: 'var(--text-muted,#6d7b6c)' }}>
+        Access your pharmaceutical logistics dashboard.
+      </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Email */}
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-bold uppercase tracking-widest text-[#3d4a3d]">Work Email</label>
-          <div className="relative">
-            <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6d7b6c]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
-            <input {...register('email')} type="email" placeholder="name@organization.eg" className={inputWithIcon} />
-          </div>
-          {errors.email && <p className="text-[11px] text-[#ba1a1a] font-medium">{errors.email.message as string}</p>}
-        </div>
+        <Input
+          label="Work Email"
+          type="email"
+          placeholder="name@organization.eg"
+          leftAddon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+          }
+          error={errors.email?.message}
+          {...register('email')}
+        />
 
-        {/* Password */}
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] font-bold uppercase tracking-widest text-[#3d4a3d]">Password</label>
-            <Link to="/forgot-password" className="text-[12px] font-semibold hover:underline" style={{ color: C.blue }}>Forgot?</Link>
+            <label className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-sub,#3d4a3d)' }}>
+              Password
+            </label>
+            <Link to="/forgot-password" className="text-[12px] font-semibold hover:underline" style={{ color: '#0058be' }}>
+              Forgot?
+            </Link>
           </div>
-          <div className="relative">
-            <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6d7b6c]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-            <input {...register('password')} type={showPw ? 'text' : 'password'} placeholder="••••••••••••"
-              className={`${inputWithIcon} pr-12`} />
-            <button type="button" onClick={() => setShowPw(!showPw)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6d7b6c] hover:text-[#191c1e] transition-colors">
-              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-          {errors.password && <p className="text-[11px] text-[#ba1a1a] font-medium">{errors.password.message as string}</p>}
+          <Input
+            type={showPw ? 'text' : 'password'}
+            placeholder="••••••••••••"
+            leftAddon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            }
+            rightAddon={
+              <button type="button" onClick={() => setShowPw(!showPw)} className="flex items-center">
+                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            }
+            error={errors.password?.message}
+            {...register('password')}
+          />
         </div>
 
-        {apiError && (
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl" style={{ background: 'rgba(255,218,214,.5)' }}>
-            <AlertCircle size={15} style={{ color: C.error, flexShrink: 0 }} />
-            <p className="text-[12px] font-medium" style={{ color: '#93000a' }}>{apiError}</p>
+        <label className="flex items-center gap-2.5 cursor-pointer">
+          <input type="checkbox" className="w-4 h-4 rounded accent-[#006e2f]" />
+          <span className="text-[13px]" style={{ color: 'var(--text-sub,#3d4a3d)' }}>
+            Keep this workstation authenticated
+          </span>
+        </label>
+
+        {error && (
+          <div className="rounded-xl px-4 py-3 text-[13px] font-medium" style={{ background: 'rgba(255,218,214,.5)', color: '#93000a' }}>
+            {error}
           </div>
         )}
 
-        <button type="submit" disabled={isSubmitting}
-          className="w-full py-3.5 rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 transition-all hover:-translate-y-px disabled:opacity-50"
-          style={{ fontFamily: 'Manrope,sans-serif', background: `linear-gradient(135deg,${C.green},${C.blue})`, boxShadow: '0 4px 14px rgba(0,110,47,.25)' }}>
-          {isSubmitting ? <RefreshCw size={16} className="animate-spin" /> : <>Secure Sign In <ArrowRight size={16} /></>}
-        </button>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          isLoading={isSubmitting}
+          className="w-full justify-center"
+          rightIcon={<ArrowRight size={16} />}
+        >
+          Secure Sign In
+        </Button>
       </form>
 
-      <p className="text-center text-[13px] text-[#6d7b6c] mt-6">
+      <p className="text-center text-[13px] mt-6" style={{ color: 'var(--text-muted,#6d7b6c)' }}>
         Don't have an account?{' '}
-        <Link to="/register" className="font-bold hover:underline" style={{ color: C.blue }}>Create account</Link>
+        <Link to="/register" className="font-bold hover:underline" style={{ color: '#0058be' }}>
+          Create account
+        </Link>
       </p>
 
-      <div className="mt-8 pt-6 border-t border-[rgba(188,203,185,.18)] flex justify-between text-[11px]" style={{ color: 'rgba(109,123,108,.5)' }}>
+      <div
+        className="mt-8 pt-5 flex justify-between text-[11px]"
+        style={{ borderTop: '1px solid rgba(188,203,185,.2)', color: 'rgba(109,123,108,.55)' }}
+      >
         <span>© 2025 EgyMediChain</span>
         <div className="flex gap-3">
           <button className="hover:opacity-80">Privacy</button>
@@ -385,7 +471,7 @@ export function RegisterPage() {
   const roleInfo = ROLES.find(r => r.value === selectedRole);
 
   return (
-    <AuthShell panel={
+    <AuthShell left={
       <>
         <div className="flex items-center gap-3 mb-auto">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
