@@ -1,6 +1,6 @@
-@Egymedichain.API_HostAddress = http://localhost:5083
+@egyMediChain.api_HostAddress = http://localhost:5121
 
-GET {{Egymedichain.API_HostAddress}}/weatherforecast/
+GET {{egyMediChain.api_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
