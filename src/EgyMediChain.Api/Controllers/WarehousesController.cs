@@ -84,33 +84,33 @@ public class WarehousesController : ControllerBase
         var old = w.WarehouseStatus?.ToString();
         w.WarehouseStatus = FacilityStatus.Suspended;
         w.UpdatedAt = DateTime.UtcNow;
-        _db.AuditLogs.Add(Log(AuditAction.SuspendEntity, "Warehouse", w.WarehouseLicenseNumber, old, "Suspended"));
+        _db.AuditLogs.Add(Log(AuditAction.SuspendEntity, "Warehouse", w.WarehouseLicenseNumber, old, "Suspended", dto?.Reason));
         await _db.SaveChangesAsync();
         return Ok(new { message = "Warehouse suspended.", status = "Suspended" });
     }
 
     [HttpPost("{id:int}/reactivate")]
-    public async Task<IActionResult> Reactivate(int id)
+    public async Task<IActionResult> Reactivate(int id, [FromBody] EntityActionDto? dto)
     {
         var w = await _db.Warehouses.FindAsync(id);
         if (w == null) return NotFound(new { message = "Warehouse not found." });
         var old = w.WarehouseStatus?.ToString();
         w.WarehouseStatus = FacilityStatus.Active;
         w.UpdatedAt = DateTime.UtcNow;
-        _db.AuditLogs.Add(Log(AuditAction.ReactivateEntity, "Warehouse", w.WarehouseLicenseNumber, old, "Active"));
+        _db.AuditLogs.Add(Log(AuditAction.ReactivateEntity, "Warehouse", w.WarehouseLicenseNumber, old, "Active", dto?.Reason));
         await _db.SaveChangesAsync();
         return Ok(new { message = "Warehouse reactivated.", status = "Active" });
     }
 
     [HttpPost("{id:int}/set-inactive")]
-    public async Task<IActionResult> SetInactive(int id)
+    public async Task<IActionResult> SetInactive(int id, [FromBody] EntityActionDto? dto)
     {
         var w = await _db.Warehouses.FindAsync(id);
         if (w == null) return NotFound(new { message = "Warehouse not found." });
         var old = w.WarehouseStatus?.ToString();
         w.WarehouseStatus = FacilityStatus.Inactive;
         w.UpdatedAt = DateTime.UtcNow;
-        _db.AuditLogs.Add(Log(AuditAction.SetInactiveEntity, "Warehouse", w.WarehouseLicenseNumber, old, "Inactive"));
+        _db.AuditLogs.Add(Log(AuditAction.SetInactiveEntity, "Warehouse", w.WarehouseLicenseNumber, old, "Inactive", dto?.Reason));
         await _db.SaveChangesAsync();
         return Ok(new { message = "Warehouse set to inactive.", status = "Inactive" });
     }
@@ -214,7 +214,7 @@ public class WarehousesController : ControllerBase
             : value;
     }
 
-    private static AuditLog Log(AuditAction action, string resourceType, string? resourceId, string? oldVal, string? newVal) => new()
+    private static AuditLog Log(AuditAction action, string resourceType, string? resourceId, string? oldVal, string? newVal, string? reason = null) => new()
     {
         LogCode = $"LOG-{DateTime.UtcNow:yyyyMMddHHmmss}",
         UserDisplayName = "Dr. Saif",
@@ -223,7 +223,7 @@ public class WarehousesController : ControllerBase
         ResourceType = resourceType,
         ResourceId = resourceId,
         OldValue = oldVal,
-        NewValue = newVal,
+        NewValue = string.IsNullOrWhiteSpace(reason) ? newVal : $"{newVal} (Reason: {reason})",
         IpAddress = "127.0.0.1",
         CreatedAt = DateTime.UtcNow
     };

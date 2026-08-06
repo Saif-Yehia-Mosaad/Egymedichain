@@ -17,14 +17,14 @@ public class AlertsController : ControllerBase
     public AlertsController(AppDbContext db) => _db = db;
 
     [HttpGet("counts")]
-    public async Task<ActionResult<object>> GetCounts()
+    public async Task<ActionResult<AlertsCountsDto>> GetCounts()
     {
         var scope = GetMinistryEntityScope();
         var alertsQuery = _db.Alerts.AsQueryable();
         if (scope != null)
             alertsQuery = alertsQuery.Where(a => a.EntityType != null && a.EntityType.ToString() == scope);
 
-        return Ok(new
+        return Ok(new AlertsCountsDto
         {
             OpenAlerts = await alertsQuery.CountAsync(a => a.AlertStatus == AlertStatus.Open),
             PublicScanLogs = scope == null ? await _db.PublicVerificationScans.CountAsync() : 0,
@@ -33,11 +33,15 @@ public class AlertsController : ControllerBase
     }
 
     // ---------------- Open Alerts ----------------
+    // Default pageSize raised from 5 -> 50 (Alerts_Backend_Gaps_Report.md, item 3): the frontend
+    // currently loads everything once and paginates/filters client-side, so a tiny default was
+    // silently truncating the dashboard to 5 rows. Cap stays at 200 to avoid an unbounded query.
     [HttpGet]
     public async Task<ActionResult<PagedResult<AlertListItemDto>>> GetAll(
         [FromQuery] string? status, [FromQuery] string? severity, [FromQuery] string? entityType,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 5)
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
+        pageSize = pageSize <= 0 ? 50 : Math.Min(pageSize, 200);
         var query = _db.Alerts.Include(a => a.Batch).AsQueryable();
 
         // Explicit filter from the frontend's dropdown - only narrows further within whatever
@@ -56,7 +60,7 @@ public class AlertsController : ControllerBase
 
         var total = await query.CountAsync();
         var items = await query.OrderByDescending(a => a.CreatedAt)
-            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize <= 0 ? 5 : pageSize)
+            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize)
             .Select(a => new AlertListItemDto
             {
                 Id = a.Id,
@@ -74,18 +78,28 @@ public class AlertsController : ControllerBase
         return Ok(new PagedResult<AlertListItemDto> { Items = items, Page = page, PageSize = pageSize, TotalCount = total });
     }
 
+    // severity/status filters added server-side (Alerts_Backend_Gaps_Report.md, item 4) - previously
+    // this only supported page/pageSize, forcing the frontend to filter locally.
     [HttpGet("recalls")]
-    public async Task<ActionResult<PagedResult<AlertListItemDto>>> GetRecalls([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
+    public async Task<ActionResult<PagedResult<AlertListItemDto>>> GetRecalls(
+        [FromQuery] string? severity, [FromQuery] string? status,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
+        pageSize = pageSize <= 0 ? 50 : Math.Min(pageSize, 200);
         var query = _db.Alerts.Include(a => a.Batch).Where(a => a.AlertType == AlertType.Recall);
 
         var scope = GetMinistryEntityScope();
         if (scope != null)
             query = query.Where(a => a.EntityType != null && a.EntityType.ToString() == scope);
 
+        if (!string.IsNullOrWhiteSpace(severity))
+            query = query.Where(a => a.Severity != null && a.Severity.ToString() == severity);
+        if (!string.IsNullOrWhiteSpace(status))
+            query = query.Where(a => a.AlertStatus != null && a.AlertStatus.ToString() == status);
+
         var total = await query.CountAsync();
         var items = await query.OrderByDescending(a => a.CreatedAt)
-            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize <= 0 ? 5 : pageSize)
+            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize)
             .Select(a => new AlertListItemDto
             {
                 Id = a.Id,
@@ -160,6 +174,47 @@ public class AlertsController : ControllerBase
         return Ok(new { message = "Alert status updated.", status = newStatus.ToString() });
     }
 
+    // Bulk status update for multiple alerts at once (Alerts_Backend_Gaps_Report.md, item 7).
+    [HttpPost("bulk-status")]
+    public async Task<IActionResult> BulkUpdateStatus([FromBody] BulkUpdateAlertStatusDto? dto)
+    {
+        if (dto?.AlertIds == null || dto.AlertIds.Count == 0)
+            return BadRequest(new { message = "At least one alertId is required." });
+
+        var newStatus = (dto.Status ?? "UnderReview") switch
+        {
+            "Resolved" => AlertStatus.Resolved,
+            "Dismissed" => AlertStatus.Dismissed,
+            "Open" => AlertStatus.Open,
+            _ => AlertStatus.UnderReview
+        };
+
+        var alerts = await _db.Alerts.Where(a => dto.AlertIds.Contains(a.Id)).ToListAsync();
+        var allowed = alerts.Where(a => IsAllowedAlertEntityType(a.EntityType)).ToList();
+
+        foreach (var a in allowed)
+        {
+            a.AlertStatus = newStatus;
+            if (newStatus is AlertStatus.Resolved or AlertStatus.Dismissed) a.ResolvedAt = DateTime.UtcNow;
+
+            _db.AuditLogs.Add(new AuditLog
+            {
+                LogCode = $"LOG-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
+                UserDisplayName = "Dr. Saif",
+                Role = SystemRole.SuperAdmin,
+                Action = newStatus == AlertStatus.Resolved ? AuditAction.ResolveAlert : AuditAction.DismissAlert,
+                ResourceType = "Alert",
+                ResourceId = a.AlertCode,
+                NewValue = newStatus.ToString(),
+                IpAddress = "127.0.0.1",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = $"{allowed.Count} alert(s) updated.", updatedCount = allowed.Count, skippedCount = alerts.Count - allowed.Count });
+    }
+
     // Ministry only - narrower than the rest of this controller (Factory/Warehouse/Pharmacy users
     // can view/update their own alerts but shouldn't be able to delete them). Only lets you delete
     // alerts that are already Resolved or Dismissed, so an active/open alert can never be erased.
@@ -196,15 +251,16 @@ public class AlertsController : ControllerBase
     // ---------------- Public Scan Logs ----------------
     [HttpGet("public-scans")]
     public async Task<ActionResult<PagedResult<ScanListItemDto>>> GetPublicScans(
-        [FromQuery] string? result, [FromQuery] int page = 1, [FromQuery] int pageSize = 5)
+        [FromQuery] string? result, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
+        pageSize = pageSize <= 0 ? 50 : Math.Min(pageSize, 200);
         var query = _db.PublicVerificationScans.AsQueryable();
         if (!string.IsNullOrWhiteSpace(result))
             query = query.Where(s => s.VerificationResult != null && s.VerificationResult.ToString() == result);
 
         var total = await query.CountAsync();
         var items = await query.OrderByDescending(s => s.ScannedAt)
-            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize <= 0 ? 5 : pageSize)
+            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize)
             .Select(s => new ScanListItemDto
             {
                 Id = s.Id,

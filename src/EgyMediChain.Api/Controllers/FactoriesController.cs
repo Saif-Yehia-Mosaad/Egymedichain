@@ -89,33 +89,33 @@ public class FactoriesController : ControllerBase
         var old = f.FactoryStatus?.ToString();
         f.FactoryStatus = FacilityStatus.Suspended;
         f.UpdatedAt = DateTime.UtcNow;
-        _db.AuditLogs.Add(Log(AuditAction.SuspendEntity, "Factory", f.FactoryLicenseNumber, old, "Suspended"));
+        _db.AuditLogs.Add(Log(AuditAction.SuspendEntity, "Factory", f.FactoryLicenseNumber, old, "Suspended", dto?.Reason));
         await _db.SaveChangesAsync();
         return Ok(new { message = "Factory suspended.", status = "Suspended" });
     }
 
     [HttpPost("{id:int}/reactivate")]
-    public async Task<IActionResult> Reactivate(int id)
+    public async Task<IActionResult> Reactivate(int id, [FromBody] EntityActionDto? dto)
     {
         var f = await _db.Factories.FindAsync(id);
         if (f == null) return NotFound(new { message = "Factory not found." });
         var old = f.FactoryStatus?.ToString();
         f.FactoryStatus = FacilityStatus.Active;
         f.UpdatedAt = DateTime.UtcNow;
-        _db.AuditLogs.Add(Log(AuditAction.ReactivateEntity, "Factory", f.FactoryLicenseNumber, old, "Active"));
+        _db.AuditLogs.Add(Log(AuditAction.ReactivateEntity, "Factory", f.FactoryLicenseNumber, old, "Active", dto?.Reason));
         await _db.SaveChangesAsync();
         return Ok(new { message = "Factory reactivated.", status = "Active" });
     }
 
     [HttpPost("{id:int}/set-inactive")]
-    public async Task<IActionResult> SetInactive(int id)
+    public async Task<IActionResult> SetInactive(int id, [FromBody] EntityActionDto? dto)
     {
         var f = await _db.Factories.FindAsync(id);
         if (f == null) return NotFound(new { message = "Factory not found." });
         var old = f.FactoryStatus?.ToString();
         f.FactoryStatus = FacilityStatus.Inactive;
         f.UpdatedAt = DateTime.UtcNow;
-        _db.AuditLogs.Add(Log(AuditAction.SetInactiveEntity, "Factory", f.FactoryLicenseNumber, old, "Inactive"));
+        _db.AuditLogs.Add(Log(AuditAction.SetInactiveEntity, "Factory", f.FactoryLicenseNumber, old, "Inactive", dto?.Reason));
         await _db.SaveChangesAsync();
         return Ok(new { message = "Factory set to inactive.", status = "Inactive" });
     }
@@ -199,7 +199,7 @@ public class FactoriesController : ControllerBase
             : value;
     }
 
-    private static AuditLog Log(AuditAction action, string resourceType, string? resourceId, string? oldVal, string? newVal) => new()
+    private static AuditLog Log(AuditAction action, string resourceType, string? resourceId, string? oldVal, string? newVal, string? reason = null) => new()
     {
         LogCode = $"LOG-{DateTime.UtcNow:yyyyMMddHHmmss}",
         UserDisplayName = "Dr. Saif",
@@ -208,7 +208,9 @@ public class FactoriesController : ControllerBase
         ResourceType = resourceType,
         ResourceId = resourceId,
         OldValue = oldVal,
-        NewValue = newVal,
+        // Reason is appended here since AuditLog has no dedicated Reason column
+        // (EntitiesManagement-Backend-Gaps.md, item 3).
+        NewValue = string.IsNullOrWhiteSpace(reason) ? newVal : $"{newVal} (Reason: {reason})",
         IpAddress = "127.0.0.1",
         CreatedAt = DateTime.UtcNow
     };

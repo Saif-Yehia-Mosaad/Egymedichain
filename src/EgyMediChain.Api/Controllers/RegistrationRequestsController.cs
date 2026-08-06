@@ -253,6 +253,37 @@ public class RegistrationRequestsController : ControllerBase
         return Ok(new PagedResult<RegistrationRequestListItemDto> { Items = items, Page = page, PageSize = pageSize, TotalCount = total });
     }
 
+    // Unified lookup, works for all 3 entity types (EntitiesManagement-Backend-Gaps.md, item 1).
+    // Replaces the frontend's text-search-then-guess-the-first-result workaround, which was
+    // unreliable for Factories and simply didn't exist for Warehouses/Pharmacies.
+    [HttpGet("by-entity/{entityType}/{entityId:int}")]
+    public async Task<ActionResult<EntityRegistrationRequestRefDto>> GetByEntity(string entityType, int entityId)
+    {
+        if (!Enum.TryParse<EntityKind>(entityType, true, out var kind))
+            return BadRequest(new { message = "entityType must be Factory, Warehouse or Pharmacy." });
+        if (!IsAllowedEntityType(kind)) return Forbid403();
+
+        var query = _db.RegistrationRequests.AsQueryable();
+        query = kind switch
+        {
+            EntityKind.Factory => query.Where(r => r.FactoryId == entityId),
+            EntityKind.Warehouse => query.Where(r => r.WarehouseId == entityId),
+            EntityKind.Pharmacy => query.Where(r => r.PharmacyId == entityId),
+            _ => query.Where(r => false)
+        };
+
+        var r = await query.OrderByDescending(x => x.SubmittedAt).FirstOrDefaultAsync();
+        if (r == null) return NotFound(new { message = "No registration request found for this entity." });
+
+        return Ok(new EntityRegistrationRequestRefDto
+        {
+            Id = r.Id,
+            RequestCode = r.RequestCode,
+            RegistrationStatus = r.RegistrationStatus?.ToString(),
+            SubmittedAt = r.SubmittedAt
+        });
+    }
+
     [HttpGet("counts")]
     public async Task<ActionResult<object>> GetCounts()
     {

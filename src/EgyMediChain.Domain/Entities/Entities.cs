@@ -6,6 +6,8 @@ public class SystemUser
 {
     public int Id { get; set; }
     public string? FullName { get; set; }
+    // Login email - kept as-is for backward compatibility (AuthController.Login queries this).
+    // Conceptually equals OfficialEmail once that's set; falls back to whichever was provided first.
     public string? Email { get; set; }
     public string? PasswordHash { get; set; }
     public string? MobileNumber { get; set; }
@@ -15,9 +17,31 @@ public class SystemUser
     public int? EntityId { get; set; }
     public bool? EmailConfirmed { get; set; }
     public bool? IsActive { get; set; }
+    // Added for Staff Management's tri-state status model (active/inactive/suspended).
+    // IsActive stays the source of truth for login gating; IsSuspended is an additional flag
+    // so "Suspended" can be told apart from a plain "Inactive" deactivation.
+    public bool? IsSuspended { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+
+    // ---- Staff Management HR/identity fields (see staff-management-backend-gaps.md) ----
+    public string? PersonalEmail { get; set; }
+    public string? OfficialEmail { get; set; }
+    public string? Department { get; set; }
+    public string? Facility { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string? Qualification { get; set; }
+    public string? JobGrade { get; set; }
+    public DateTime? HireDate { get; set; }
+    public string? InsuranceNumber { get; set; }
+
+    // Soft delete (Backend Action Report §5.2) - permanently destroying a staff record breaks
+    // its link to historical audit trail / approvals they signed off on, which is a compliance
+    // risk for a regulated Ministry system. DELETE now sets these instead of removing the row.
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public int? DeletedByUserId { get; set; }
 
     public ICollection<AuthRefreshToken>? RefreshTokens { get; set; }
 }
@@ -32,6 +56,65 @@ public class AuthRefreshToken
     public DateTime? CreatedAt { get; set; }
     public DateTime? RevokedAt { get; set; }
     public string? CreatedByIp { get; set; }
+}
+
+// Self-service Forgot Password flow (Backend Action Report §2). OTP + reset token are both
+// stored hashed, never in plaintext - see AuthController for the HMAC hashing.
+public class PasswordResetRequest
+{
+    public int Id { get; set; }
+    public int? UserId { get; set; }
+    public SystemUser? User { get; set; }
+    public string? RequestedEmail { get; set; }
+    public string? HashedOtp { get; set; }
+    public string? ResetTokenHash { get; set; }
+    public int Attempts { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+    public DateTime? ResetTokenExpiresAt { get; set; }
+    public DateTime? VerifiedAt { get; set; }
+    public DateTime? ConsumedAt { get; set; }
+    public string? RequestIp { get; set; }
+}
+
+// Async report generation job (Backend Action Report §4). Kept intentionally simple - runs via
+// Task.Run + IServiceScopeFactory rather than a full queue/worker (Hangfire etc.), since none is
+// wired up in this project yet. Good enough for Ministry-scale data volumes; revisit with a real
+// job queue if report generation ever needs to survive an app restart mid-job.
+public class ReportJob
+{
+    public Guid Id { get; set; }
+    public int? RequestedByUserId { get; set; }
+    public string? ReportType { get; set; }
+    public string? Format { get; set; }
+    public string? ParametersJson { get; set; }
+    public string Status { get; set; } = "Queued"; // Queued | Processing | Completed | Failed
+    public string? FilePath { get; set; }
+    public string? ErrorMessage { get; set; }
+    public DateTime? RequestedAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
+}
+public class UserPreference
+{
+    public int Id { get; set; }
+    public int? UserId { get; set; }
+    public SystemUser? User { get; set; }
+    public bool EmailAlerts { get; set; } = true;
+    public bool PushNotifications { get; set; } = true;
+    public bool CriticalAlerts { get; set; } = true;
+    public bool WeeklyReports { get; set; }
+    public string? AvatarUrl { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+
+// Single-row Ministry-wide policy config (Backend Action Report §3.2). SuperAdmin-only.
+public class SystemConfiguration
+{
+    public int Id { get; set; }
+    public bool TwoFactorRequired { get; set; }
+    public int SessionTimeoutMinutes { get; set; } = 60;
+    public DateTime? UpdatedAt { get; set; }
+    public int? UpdatedByUserId { get; set; }
 }
 
 public class RegistrationRequest

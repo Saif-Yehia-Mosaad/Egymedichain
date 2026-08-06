@@ -4,6 +4,7 @@ using EgyMediChain.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EgyMediChain.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260804145550_ApiGapsAndStaffHrFields")]
+    partial class ApiGapsAndStaffHrFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -545,54 +548,6 @@ namespace EgyMediChain.Infrastructure.Migrations
                     b.ToTable("MedicineProducts");
                 });
 
-            modelBuilder.Entity("EgyMediChain.Domain.Entities.PasswordResetRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("Attempts")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ConsumedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("HashedOtp")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RequestIp")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RequestedEmail")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("ResetTokenExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ResetTokenHash")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("VerifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("PasswordResetRequests");
-                });
-
             modelBuilder.Entity("EgyMediChain.Domain.Entities.Pharmacy", b =>
                 {
                     b.Property<int>("Id")
@@ -785,45 +740,6 @@ namespace EgyMediChain.Infrastructure.Migrations
                     b.ToTable("RegistrationRequests");
                 });
 
-            modelBuilder.Entity("EgyMediChain.Domain.Entities.ReportJob", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("FilePath")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Format")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ParametersJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ReportType")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("RequestedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("RequestedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ReportJobs");
-                });
-
             modelBuilder.Entity("EgyMediChain.Domain.Entities.Shipment", b =>
                 {
                     b.Property<int>("Id")
@@ -904,31 +820,6 @@ namespace EgyMediChain.Infrastructure.Migrations
                     b.ToTable("Shipments");
                 });
 
-            modelBuilder.Entity("EgyMediChain.Domain.Entities.SystemConfiguration", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("SessionTimeoutMinutes")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("TwoFactorRequired")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SystemConfigurations");
-                });
-
             modelBuilder.Entity("EgyMediChain.Domain.Entities.SystemUser", b =>
                 {
                     b.Property<int>("Id")
@@ -942,12 +833,6 @@ namespace EgyMediChain.Infrastructure.Migrations
 
                     b.Property<DateTime?>("DateOfBirth")
                         .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("DeletedByUserId")
-                        .HasColumnType("int");
 
                     b.Property<string>("Department")
                         .HasColumnType("nvarchar(max)");
@@ -977,9 +862,6 @@ namespace EgyMediChain.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool?>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<bool?>("IsSuspended")
@@ -1069,42 +951,6 @@ namespace EgyMediChain.Infrastructure.Migrations
                     b.HasIndex("BatchId");
 
                     b.ToTable("UnitCodes");
-                });
-
-            modelBuilder.Entity("EgyMediChain.Domain.Entities.UserPreference", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AvatarUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("CriticalAlerts")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("EmailAlerts")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("PushNotifications")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("WeeklyReports")
-                        .HasColumnType("bit");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("UserPreferences");
                 });
 
             modelBuilder.Entity("EgyMediChain.Domain.Entities.Warehouse", b =>
@@ -1282,15 +1128,6 @@ namespace EgyMediChain.Infrastructure.Migrations
                     b.Navigation("Batch");
                 });
 
-            modelBuilder.Entity("EgyMediChain.Domain.Entities.PasswordResetRequest", b =>
-                {
-                    b.HasOne("EgyMediChain.Domain.Entities.SystemUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("EgyMediChain.Domain.Entities.Pharmacy", b =>
                 {
                     b.HasOne("EgyMediChain.Domain.Entities.Warehouse", "DefaultWarehouse")
@@ -1380,15 +1217,6 @@ namespace EgyMediChain.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Batch");
-                });
-
-            modelBuilder.Entity("EgyMediChain.Domain.Entities.UserPreference", b =>
-                {
-                    b.HasOne("EgyMediChain.Domain.Entities.SystemUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("EgyMediChain.Domain.Entities.Batch", b =>

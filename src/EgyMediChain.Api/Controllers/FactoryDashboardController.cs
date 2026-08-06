@@ -116,7 +116,8 @@ public class FactoryDashboardController : ControllerBase
                 CurrentLocation = b.CurrentLocation,
                 OpenAlerts = b.OpenAlertsCount,
                 UnitCodesCount = b.GeneratedUnitCodes,
-                AvailableForDispatch = b.BatchStatus == BatchStatus.ReadyForWarehouseDispatch || b.BatchStatus == BatchStatus.PartiallyDispatched
+                AvailableForDispatch = b.BatchStatus == BatchStatus.ReadyForWarehouseDispatch || b.BatchStatus == BatchStatus.PartiallyDispatched,
+                RequiresColdChain = b.MedicineProduct != null ? b.MedicineProduct.RequiresColdChain : null
             }).ToListAsync();
 
         return Ok(new PagedResult<BatchListItemDto> { Items = items, Page = page, PageSize = pageSize, TotalCount = total });
@@ -187,6 +188,138 @@ public class FactoryDashboardController : ControllerBase
                 CreatedAt = a.CreatedAt,
                 ResolvedAt = a.ResolvedAt
             }).ToList()
+        });
+    }
+
+    // Real system-of-record unit codes for a batch (Backend_Action_Report_Factory_Portal, item 1.2).
+    // Replaces the frontend's client-side fabricated CSV export - this is the actual generated data.
+    [HttpGet("batches/{batchId:int}/unit-codes")]
+    public async Task<ActionResult<PagedResult<UnitCodeListItemDto>>> GetUnitCodes(int factoryId, int batchId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 100)
+    {
+        var batch = await _db.Batches.FirstOrDefaultAsync(b => b.Id == batchId && b.FactoryId == factoryId);
+        if (batch == null) return NotFound(new { message = "Batch not found for this factory." });
+
+        if (batch.BatchStatus != BatchStatus.CodesGenerated &&
+            batch.BatchStatus != BatchStatus.ReadyForWarehouseDispatch &&
+            batch.BatchStatus != BatchStatus.PartiallyDispatched &&
+            batch.BatchStatus != BatchStatus.FullyDispatched)
+            return Conflict(new { message = "Unit codes are only available once they've been generated for this batch." });
+
+        var query = _db.UnitCodes.Where(u => u.BatchId == batchId);
+        var total = await query.CountAsync();
+        var items = await query.OrderBy(u => u.Id)
+            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize <= 0 ? 100 : pageSize)
+            .Select(u => new UnitCodeListItemDto
+            {
+                Id = u.Id,
+                GTIN = u.GTIN,
+                SerialNumber = u.SerialNumber,
+                CodeValueHash = u.CodeValueHash,
+                ExpiryDate = u.ExpiryDate,
+                UnitStatus = u.UnitStatus.ToString()
+            }).ToListAsync();
+
+        return Ok(new PagedResult<UnitCodeListItemDto> { Items = items, Page = page, PageSize = pageSize, TotalCount = total });
+    }
+
+    // Factory-scoped warehouse directory for dispatch destination selection
+    // (Backend_Action_Report_Factory_Portal, item 1.4). Only Active warehouses, so the frontend
+    // can show real names + cold-storage capability instead of a blind numeric ID field.
+    [HttpGet("warehouses")]
+    public async Task<ActionResult<PagedResult<WarehouseOptionDto>>> GetWarehousesForDispatch(int factoryId,
+        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    {
+        var query = _db.Warehouses.Where(w => w.WarehouseStatus == FacilityStatus.Active);
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(w => w.OfficialWarehouseName != null && w.OfficialWarehouseName.Contains(search));
+
+        var total = await query.CountAsync();
+        var items = await query.OrderBy(w => w.OfficialWarehouseName)
+            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize <= 0 ? 50 : pageSize)
+            .Select(w => new WarehouseOptionDto
+            {
+                Id = w.Id,
+                WarehouseName = w.OfficialWarehouseName,
+                Governorate = w.Governorate,
+                City = w.City,
+                HasColdStorage = w.HasColdStorage,
+                WarehouseStatus = w.WarehouseStatus.ToString()
+            }).ToListAsync();
+
+        return Ok(new PagedResult<WarehouseOptionDto> { Items = items, Page = page, PageSize = pageSize, TotalCount = total });
+    }
+
+    // Alert status counts scoped to this factory, independent of list pagination
+    // (Backend_Action_Report_Factory_Portal, item 1.5).
+    [HttpGet("alerts/counts")]
+    public async Task<ActionResult<FactoryAlertsCountsDto>> GetAlertsCounts(int factoryId)
+    {
+        var factory = await GetFactoryAsync(factoryId);
+        if (factory == null) return NotFound(new { message = "Factory not found." });
+
+        var query = _db.Alerts.Where(a => a.EntityType == EntityKind.Factory && a.EntityName == factory.OfficialFactoryName);
+        return Ok(new FactoryAlertsCountsDto
+        {
+            Open = await query.CountAsync(a => a.AlertStatus == AlertStatus.Open),
+            UnderReview = await query.CountAsync(a => a.AlertStatus == AlertStatus.UnderReview),
+            Resolved = await query.CountAsync(a => a.AlertStatus == AlertStatus.Resolved),
+            Dismissed = await query.CountAsync(a => a.AlertStatus == AlertStatus.Dismissed),
+            Total = await query.CountAsync()
+        });
+    }
+
+    // Edit a Draft batch in place (Backend_Action_Report_Factory_Portal, item 1.1).
+    [HttpPut("batches/{batchId:int}")]
+    [HttpPatch("batches/{batchId:int}")]
+    public async Task<ActionResult<BatchListItemDto>> UpdateBatch(int factoryId, int batchId, [FromBody] UpdateBatchDto? dto)
+    {
+        var factory = await GetFactoryAsync(factoryId);
+        if (factory == null) return NotFound(new { message = "Factory not found." });
+        if (!IsActive(factory)) return Conflict(new { message = "This factory is not Active. Operational actions are disabled." });
+
+        var batch = await _db.Batches.Include(b => b.MedicineProduct).FirstOrDefaultAsync(b => b.Id == batchId && b.FactoryId == factoryId);
+        if (batch == null) return NotFound(new { message = "Batch not found for this factory." });
+        if (batch.BatchStatus != BatchStatus.Draft)
+            return Conflict(new { message = "Only a Draft batch can be edited." });
+
+        if (dto?.ExpiryDate != null && dto.ManufacturingDate != null && dto.ExpiryDate <= dto.ManufacturingDate)
+            return BadRequest(new { message = "Expiry date must be after manufacturing date." });
+        if (dto?.Quantity != null && dto.Quantity <= 0)
+            return BadRequest(new { message = "Quantity must be greater than 0." });
+
+        if (batch.MedicineProduct != null)
+        {
+            if (dto?.ProductName != null) batch.MedicineProduct.ProductName = dto.ProductName;
+            if (dto?.GTIN != null) batch.MedicineProduct.GTIN = dto.GTIN;
+            if (dto?.DosageForm != null) batch.MedicineProduct.DosageForm = dto.DosageForm;
+            if (dto?.Strength != null) batch.MedicineProduct.Strength = dto.Strength;
+            if (dto?.RequiresColdChain != null) batch.MedicineProduct.RequiresColdChain = dto.RequiresColdChain;
+        }
+
+        if (dto?.BatchNumber != null) batch.BatchNumber = dto.BatchNumber;
+        if (dto?.Quantity != null) batch.Quantity = dto.Quantity;
+        if (dto?.ManufacturingDate != null) batch.ManufacturingDate = dto.ManufacturingDate;
+        if (dto?.ExpiryDate != null) batch.ExpiryDate = dto.ExpiryDate;
+        if (dto?.Notes != null) batch.Notes = dto.Notes;
+        batch.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new BatchListItemDto
+        {
+            Id = batch.Id,
+            ProductName = batch.MedicineProduct?.ProductName,
+            GTIN = batch.MedicineProduct?.GTIN,
+            DosageForm = batch.MedicineProduct?.DosageForm,
+            Strength = batch.MedicineProduct?.Strength,
+            BatchNumber = batch.BatchNumber,
+            Quantity = batch.Quantity,
+            ManufacturingDate = batch.ManufacturingDate,
+            ExpiryDate = batch.ExpiryDate,
+            BatchStatus = batch.BatchStatus.ToString(),
+            SupplyChainStage = batch.SupplyChainStage.ToString(),
+            RequiresColdChain = batch.MedicineProduct?.RequiresColdChain
         });
     }
 

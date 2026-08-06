@@ -191,6 +191,17 @@ public enum AuditAction
     DeleteRegistrationRequest,
     DeleteUser,
     DeleteDraftBatch,
-    DeleteAlert
+    DeleteAlert,
+    // Added for the Staff Management gap fixes
+    ResetUserPassword,
+    SuspendUser,
+    // Added for Edit Staff + Forgot Password (Backend Action Report)
+    StaffMemberUpdated,
+    ForgotPasswordRequested,
+    PasswordResetVerifyAttempted,
+    PasswordResetCompleted,
+    SystemConfigUpdated,
+    LoginFailed,
+    LoginLockedOut
 }
 

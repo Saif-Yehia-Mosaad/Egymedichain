@@ -23,6 +23,10 @@ public class AppDbContext : DbContext
     public DbSet<PublicVerificationScan> PublicVerificationScans => Set<PublicVerificationScan>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<EntityLicense> EntityLicenses => Set<EntityLicense>();
+    public DbSet<PasswordResetRequest> PasswordResetRequests => Set<PasswordResetRequest>();
+    public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
+    public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
+    public DbSet<ReportJob> ReportJobs => Set<ReportJob>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

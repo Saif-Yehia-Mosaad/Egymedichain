@@ -39,6 +39,12 @@ public class OverviewController : ControllerBase
             ActivePharmacies = (scope == null || scope == "Pharmacy")
                 ? await _db.Pharmacies.CountAsync(p => p.PharmacyStatus == FacilityStatus.Active) : 0,
 
+            // Totals (EntitiesManagement-Backend-Gaps.md, item 4) - so the Entities Management
+            // screen doesn't need 3 extra "?pageSize=1" requests just to read totalCount.
+            TotalFactories = (scope == null || scope == "Factory") ? await _db.Factories.CountAsync() : 0,
+            TotalWarehouses = (scope == null || scope == "Warehouse") ? await _db.Warehouses.CountAsync() : 0,
+            TotalPharmacies = (scope == null || scope == "Pharmacy") ? await _db.Pharmacies.CountAsync() : 0,
+
             // Batches are produced by factories, so this card only means something for an
             // unscoped account or one scoped to Factory.
             ActiveBatches = (scope == null || scope == "Factory")

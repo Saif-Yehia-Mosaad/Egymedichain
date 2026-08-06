@@ -23,9 +23,9 @@ public class BatchesController : ControllerBase
     public BatchesController(AppDbContext db) => _db = db;
 
     [HttpGet("summary")]
-    public async Task<ActionResult<object>> GetSummary()
+    public async Task<ActionResult<BatchesSummaryDto>> GetSummary()
     {
-        return Ok(new
+        return Ok(new BatchesSummaryDto
         {
             TotalBatches = await _db.Batches.CountAsync(),
             InProduction = await _db.Batches.CountAsync(b => b.BatchStatus == BatchStatus.InProduction),
@@ -41,7 +41,8 @@ public class BatchesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PagedResult<BatchListItemDto>>> GetAll(
         [FromQuery] string? search, [FromQuery] string? factory, [FromQuery] string? batchStatus,
-        [FromQuery] string? stage, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        [FromQuery] string? stage, [FromQuery] string? dosageForm,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
         var query = _db.Batches.Include(b => b.MedicineProduct).Include(b => b.Factory).AsQueryable();
 
@@ -59,6 +60,11 @@ public class BatchesController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(stage))
             query = query.Where(b => b.SupplyChainStage != null && b.SupplyChainStage.ToString() == stage);
+
+        // Real server-side filter (MedicineBatchDashboard-Backend-Gaps.md, item 2) - previously
+        // only applied client-side on the current page, which silently missed matches on other pages.
+        if (!string.IsNullOrWhiteSpace(dosageForm))
+            query = query.Where(b => b.MedicineProduct != null && b.MedicineProduct.DosageForm == dosageForm);
 
         var total = await query.CountAsync();
         var items = await query.OrderBy(b => b.Id)
@@ -78,6 +84,7 @@ public class BatchesController : ControllerBase
                 SupplyChainStage = b.SupplyChainStage.ToString(),
                 CurrentLocation = b.CurrentLocation,
                 OpenAlerts = b.OpenAlertsCount,
+                RequiresColdChain = b.MedicineProduct != null ? b.MedicineProduct.RequiresColdChain : null,
                 UpdatedAt = b.UpdatedAt
             }).ToListAsync();
 
@@ -211,6 +218,47 @@ public class BatchesController : ControllerBase
 
         await _db.SaveChangesAsync();
         return Ok(new { message = "Batch frozen (quarantined).", status = "Quarantined" });
+    }
+
+    // Reverses a freeze done in error. Restores the status the batch had right before it was
+    // frozen (read from the last FreezeBatch audit log entry for this batch), falling back to
+    // InSupplyChain if no such log is found. Only works while the batch is still Quarantined -
+    // won't touch a batch that's since been Recalled through a separate action.
+    [HttpPost("{id:int}/unfreeze")]
+    public async Task<IActionResult> Unfreeze(int id)
+    {
+        var b = await _db.Batches.Include(x => x.UnitCodes).Include(x => x.InventoryStocks).FirstOrDefaultAsync(x => x.Id == id);
+        if (b == null) return NotFound(new { message = "Batch not found." });
+        if (b.BatchStatus != BatchStatus.Quarantined)
+            return Conflict(new { message = "Only a Quarantined batch can be unfrozen." });
+
+        var lastFreezeLog = await _db.AuditLogs
+            .Where(l => l.Action == AuditAction.FreezeBatch && l.ResourceId == b.BatchNumber)
+            .OrderByDescending(l => l.CreatedAt).FirstOrDefaultAsync();
+
+        var restoredStatus = Enum.TryParse<BatchStatus>(lastFreezeLog?.OldValue, out var parsed) ? parsed : BatchStatus.InSupplyChain;
+
+        b.BatchStatus = restoredStatus;
+        b.UpdatedAt = DateTime.UtcNow;
+        if (b.UnitCodes != null) foreach (var u in b.UnitCodes.Where(u => u.UnitStatus == UnitStatus.Blocked)) u.UnitStatus = UnitStatus.InWarehouse;
+        if (b.InventoryStocks != null) foreach (var i in b.InventoryStocks.Where(i => i.InventoryStatus == InventoryStatus.Blocked)) i.InventoryStatus = InventoryStatus.Active;
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            LogCode = $"LOG-{DateTime.UtcNow:yyyyMMddHHmmss}",
+            UserDisplayName = "Dr. Saif",
+            Role = SystemRole.SuperAdmin,
+            Action = AuditAction.FreezeBatch,
+            ResourceType = "Batch",
+            ResourceId = b.BatchNumber,
+            OldValue = "Quarantined",
+            NewValue = restoredStatus.ToString(),
+            IpAddress = "127.0.0.1",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Batch unfrozen.", status = restoredStatus.ToString() });
     }
 
     [HttpPost("{id:int}/create-recall-alert")]
