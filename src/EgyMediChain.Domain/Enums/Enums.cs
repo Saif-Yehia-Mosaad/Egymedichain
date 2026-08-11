@@ -18,6 +18,15 @@ public enum EntityKind
     Ministry
 }
 
+// Documents the values already used as free text for shipment-inspection outcomes
+// (Remaining Gaps - "inspectionResult ... still a plain string with no enum in the Swagger").
+public enum InspectionResult
+{
+    Accepted,
+    PartiallyAccepted,
+    Rejected
+}
+
 public enum RegistrationStatus
 {
     Pending,
@@ -204,4 +213,3 @@ public enum AuditAction
     LoginFailed,
     LoginLockedOut
 }
-

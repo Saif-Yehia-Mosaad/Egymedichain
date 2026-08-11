@@ -285,14 +285,14 @@ public class RegistrationRequestsController : ControllerBase
     }
 
     [HttpGet("counts")]
-    public async Task<ActionResult<object>> GetCounts()
+    public async Task<ActionResult<RegistrationRequestsCountsDto>> GetCounts()
     {
         var scope = GetCallerEntityScope();
         var baseQuery = _db.RegistrationRequests.AsQueryable();
         if (scope != null)
             baseQuery = baseQuery.Where(r => r.EntityType != null && r.EntityType.ToString() == scope);
 
-        return Ok(new
+        return Ok(new RegistrationRequestsCountsDto
         {
             PendingReview = await baseQuery.CountAsync(r => r.RegistrationStatus == RegistrationStatus.Pending || r.RegistrationStatus == RegistrationStatus.UnderReview),
             NeedsMoreDocuments = await baseQuery.CountAsync(r => r.RegistrationStatus == RegistrationStatus.NeedsMoreDocuments),

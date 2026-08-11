@@ -18,12 +18,14 @@ public class AuthController : ControllerBase
     private readonly AppDbContext _db;
     private readonly JwtTokenService _jwt;
     private readonly IConfiguration _config;
+    private readonly IEmailService _email;
 
-    public AuthController(AppDbContext db, JwtTokenService jwt, IConfiguration config)
+    public AuthController(AppDbContext db, JwtTokenService jwt, IConfiguration config, IEmailService email)
     {
         _db = db;
         _jwt = jwt;
         _config = config;
+        _email = email;
     }
 
     [HttpPost("login")]
@@ -32,7 +34,7 @@ public class AuthController : ControllerBase
         if (dto == null || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
             return BadRequest(new { message = "Email and password are required." });
 
-        // ง5.1 - lock an account for a short cool-down after 5 consecutive failed attempts in
+        // ยง5.1 - lock an account for a short cool-down after 5 consecutive failed attempts in
         // the last 15 minutes, same rate-limit pattern used for the Forgot Password flow.
         var lockoutWindow = DateTime.UtcNow.AddMinutes(-15);
         var recentFailures = await _db.AuditLogs.CountAsync(l =>
@@ -117,7 +119,7 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Logged out." });
     }
 
-    // ---------------- Forgot Password flow (Backend Action Report ง2) ----------------
+    // ---------------- Forgot Password flow (Backend Action Report ยง2) ----------------
     // Design principle: impossible to use for account enumeration. Every branch below returns
     // the exact same 200 + generic body regardless of whether the email exists, is suspended, etc.
 
@@ -130,7 +132,7 @@ public class AuthController : ControllerBase
         var generic = new GenericMessageResponseDto { Message = "If an account exists for this email, a reset code has been sent." };
 
         // Lightweight DB-backed rate limit (no rate-limiting middleware wired up yet in this
-        // project - ง5.1/ง2.4 flag this as infra worth adding generically; this is the
+        // project - ยง5.1/ยง2.4 flag this as infra worth adding generically; this is the
         // self-contained version scoped to just this table for now).
         var since = DateTime.UtcNow.AddHours(-1);
         var recentByEmail = await _db.PasswordResetRequests.CountAsync(r => r.RequestedEmail == dto.Email && r.CreatedAt >= since);
@@ -156,9 +158,13 @@ public class AuthController : ControllerBase
             });
             await _db.SaveChangesAsync();
 
-            // No email service is wired up in this project yet (Backend Action Report ง5.4).
+            // No email service is wired up in this project yet (Backend Action Report ยง5.4).
             // Logged here so the flow is testable end-to-end locally until Brevo/SMTP is added.
-            Console.WriteLine($"[NOTIFY - email service not configured] OTP for {dto.Email}: {otp} (expires in 10 min)");
+            // Fire-and-forget - don't let email latency/failure block the response (ยง2.1 step 5,
+            // ยง5.4). Falls back to a console log automatically if Brevo isn't configured yet
+            // (see BrevoEmailService).
+            _ = _email.SendAsync(dto.Email, "Your EgyMediChain password reset code",
+                $"<p>Your one-time verification code is:</p><h2 style=\"letter-spacing:4px\">{otp}</h2><p>This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>");
         }
         else
         {
@@ -271,7 +277,11 @@ public class AuthController : ControllerBase
         await _db.SaveChangesAsync();
 
         // No email service wired up yet - see note in ForgotPassword above.
-        Console.WriteLine($"[NOTIFY - email service not configured] Would email {user.OfficialEmail ?? user.Email} and {user.PersonalEmail}: your password was just changed.");
+        var changeNotice = "<p>Your EgyMediChain account password was just changed.</p><p>If this wasn't you, contact your Ministry SuperAdmin immediately - all your active sessions have been signed out as a precaution.</p>";
+        if (!string.IsNullOrWhiteSpace(user.OfficialEmail ?? user.Email))
+            _ = _email.SendAsync(user.OfficialEmail ?? user.Email!, "Your EgyMediChain password was changed", changeNotice);
+        if (!string.IsNullOrWhiteSpace(user.PersonalEmail))
+            _ = _email.SendAsync(user.PersonalEmail!, "Your EgyMediChain password was changed", changeNotice);
 
         return Ok(new GenericMessageResponseDto { Message = "Password reset successfully. Please sign in with your new password." });
     }

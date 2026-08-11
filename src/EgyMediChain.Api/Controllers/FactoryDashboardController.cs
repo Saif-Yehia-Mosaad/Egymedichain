@@ -6,6 +6,7 @@ using EgyMediChain.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Fluent;
 
 namespace EgyMediChain.Api.Controllers;
 
@@ -223,7 +224,73 @@ public class FactoryDashboardController : ControllerBase
         return Ok(new PagedResult<UnitCodeListItemDto> { Items = items, Page = page, PageSize = pageSize, TotalCount = total });
     }
 
-    // Factory-scoped warehouse directory for dispatch destination selection
+    // Real backend-rendered, print-ready QR label sheet (Backend_Action_Report_Factory_Portal,
+    // item 1.3). Replaces the frontend's text-only fake "PDF" (raw PDF syntax with no actual QR
+    // codes). QR payload is UnitCodeValue - the same value the public verification scan flow reads.
+    // Capped at 1,000 labels per call (a 100,000-unit PDF isn't a usable print artifact anyway);
+    // use ?page= to fetch the next batch of labels.
+    [HttpGet("batches/{batchId:int}/unit-codes/labels")]
+    public async Task<IActionResult> GetUnitCodeLabelsPdf(int factoryId, int batchId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 200)
+    {
+        var batch = await _db.Batches.Include(b => b.MedicineProduct).FirstOrDefaultAsync(b => b.Id == batchId && b.FactoryId == factoryId);
+        if (batch == null) return NotFound(new { message = "Batch not found for this factory." });
+
+        if (batch.BatchStatus != BatchStatus.CodesGenerated &&
+            batch.BatchStatus != BatchStatus.ReadyForWarehouseDispatch &&
+            batch.BatchStatus != BatchStatus.PartiallyDispatched &&
+            batch.BatchStatus != BatchStatus.FullyDispatched)
+            return Conflict(new { message = "Unit codes are only available once they've been generated for this batch." });
+
+        pageSize = pageSize <= 0 ? 200 : Math.Min(pageSize, 1000);
+        var units = await _db.UnitCodes.Where(u => u.BatchId == batchId).OrderBy(u => u.Id)
+            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize).ToListAsync();
+
+        if (units.Count == 0) return NotFound(new { message = "No unit codes were found for this batch yet." });
+
+        var qrGenerator = new QRCoder.QRCodeGenerator();
+        var pngLabels = units.Select(u =>
+        {
+            var payload = u.UnitCodeValue ?? u.CodeValueHash ?? u.SerialNumber ?? u.Id.ToString();
+            using var qrData = qrGenerator.CreateQrCode(payload, QRCoder.QRCodeGenerator.ECCLevel.M);
+            var png = new QRCoder.PngByteQRCode(qrData);
+            return (Unit: u, PngBytes: png.GetGraphic(8));
+        }).ToList();
+
+        var pdfBytes = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(QuestPDF.Helpers.PageSizes.A4);
+                page.Margin(20);
+                page.Header().Text($"EgyMediChain — Unit Labels — Batch {batch.BatchNumber}").FontSize(14).Bold();
+                page.Footer().AlignCenter().Text(x =>
+                {
+                    x.Span("Page ");
+                    x.CurrentPageNumber();
+                    x.Span(" / ");
+                    x.TotalPages();
+                });
+
+                page.Content().PaddingTop(10).Table(table =>
+                {
+                    table.ColumnsDefinition(c => { c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn(); });
+
+                    foreach (var (unit, pngBytes) in pngLabels)
+                    {
+                        table.Cell().Border(0.5f).Padding(6).Column(col =>
+                        {
+                            col.Item().AlignCenter().Height(90).Image(pngBytes);
+                            col.Item().AlignCenter().Text(unit.SerialNumber ?? unit.UnitCodeValue ?? "").FontSize(7);
+                            col.Item().AlignCenter().Text(batch.MedicineProduct?.ProductName ?? "").FontSize(6);
+                        });
+                    }
+                });
+            });
+        }).GeneratePdf();
+
+        return File(pdfBytes, "application/pdf", $"unit-labels-{batch.BatchNumber}-p{page}.pdf");
+    }
     // (Backend_Action_Report_Factory_Portal, item 1.4). Only Active warehouses, so the frontend
     // can show real names + cold-storage capability instead of a blind numeric ID field.
     [HttpGet("warehouses")]
@@ -790,4 +857,3 @@ public class FactoryDashboardController : ControllerBase
         CreatedAt = DateTime.UtcNow
     };
 }
-

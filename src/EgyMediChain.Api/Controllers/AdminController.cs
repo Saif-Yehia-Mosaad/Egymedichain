@@ -1,3 +1,4 @@
+using EgyMediChain.Api.Common;
 using EgyMediChain.Api.Dtos;
 using EgyMediChain.Domain.Entities;
 using EgyMediChain.Domain.Enums;
@@ -14,7 +15,8 @@ namespace EgyMediChain.Api.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public AdminController(AppDbContext db) => _db = db;
+    private readonly IEmailService _email;
+    public AdminController(AppDbContext db, IEmailService email) { _db = db; _email = email; }
 
     [HttpGet("users/summary")]
     public async Task<ActionResult<SystemUsersSummaryDto>> GetUsersSummary()
@@ -190,7 +192,7 @@ public class AdminController : ControllerBase
     }
 
     // GET /api/admin/users/{id} - single trustworthy fetch, replaces the frontend's
-    // page=1&pageSize=1 workaround (Backend Action Report ง1.1).
+    // page=1&pageSize=1 workaround (Backend Action Report ยง1.1).
     [HttpGet("users/{id:int}")]
     public async Task<ActionResult<SystemUserListItemDto>> GetUserById(int id)
     {
@@ -223,14 +225,14 @@ public class AdminController : ControllerBase
         });
     }
 
-    // PUT /api/admin/users/{id} - Edit Staff (Backend Action Report ง1.2-1.6).
+    // PUT /api/admin/users/{id} - Edit Staff (Backend Action Report ยง1.2-1.6).
     // Critical priority per the report: previously there was no way to correct a staff record
     // short of deleting and recreating the account.
     [HttpPut("users/{id:int}")]
     [HttpPatch("users/{id:int}")]
     public async Task<ActionResult<SystemUserListItemDto>> UpdateUser(int id, [FromBody] UpdateMinistryAdminDto? dto)
     {
-        // ง1.5 - rate-limit per admin (60 edits/hour) to catch a compromised admin session
+        // ยง1.5 - rate-limit per admin (60 edits/hour) to catch a compromised admin session
         // performing bulk unauthorized changes. Same DB-backed pattern used for forgot-password/login.
         var editorEmailForLimit = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
             ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value;
@@ -243,7 +245,7 @@ public class AdminController : ControllerBase
                 return StatusCode(429, new { message = "Too many staff edits in the last hour. Please slow down." });
         }
 
-        // ง1.5 - reject rather than silently ignore an attempt to send immutable/sensitive fields
+        // ยง1.5 - reject rather than silently ignore an attempt to send immutable/sensitive fields
         // through this endpoint, so the caller gets clear signal it's using the wrong route.
         if (dto?.NationalId != null || dto?.Password != null || dto?.TemporaryPassword != null)
             return BadRequest(new { message = "nationalId and password fields can't be changed here. Use /admin/users/{id}/reset-password for passwords; nationalId is immutable after creation." });
@@ -257,11 +259,11 @@ public class AdminController : ControllerBase
         var isSelf = !string.IsNullOrEmpty(callerEmail) && string.Equals(callerEmail, u.Email, StringComparison.OrdinalIgnoreCase);
         var callerIsSuperAdmin = string.Equals(callerRoleStr, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
 
-        // ง1.4.3 - a MinistryAdmin/Viewer cannot touch a SuperAdmin record. Only SuperAdmin can.
+        // ยง1.4.3 - a MinistryAdmin/Viewer cannot touch a SuperAdmin record. Only SuperAdmin can.
         if (u.Role == SystemRole.SuperAdmin && !callerIsSuperAdmin)
             return Forbid();
 
-        // ง1.4.2 - self-edit can't change own role or status (privilege escalation / self-lockout guard).
+        // ยง1.4.2 - self-edit can't change own role or status (privilege escalation / self-lockout guard).
         if (isSelf && (dto?.Role != null || dto?.Status != null))
             return StatusCode(403, new { message = "You can't change your own role or status." });
 
@@ -299,7 +301,7 @@ public class AdminController : ControllerBase
             if (emailInUse) return Conflict(new { message = "This email is already in use by another account." });
         }
 
-        // ง1.4.4 - never let the last active SuperAdmin lose that status.
+        // ยง1.4.4 - never let the last active SuperAdmin lose that status.
         if (u.Role == SystemRole.SuperAdmin && callerIsSuperAdmin)
         {
             var losingSuperAdmin = (newRole != SystemRole.SuperAdmin) || string.Equals(dto?.Status, "Suspended", StringComparison.OrdinalIgnoreCase) || string.Equals(dto?.Status, "Inactive", StringComparison.OrdinalIgnoreCase);
@@ -361,7 +363,7 @@ public class AdminController : ControllerBase
             if (!Equals(oldSnapshot[key], newSnapshot[key])) { changedOld[key] = oldSnapshot[key]; changedNew[key] = newSnapshot[key]; }
         }
 
-        // ง1.4.6 - audit log is mandatory, diff-only (never a full-object dump, never a password/token).
+        // ยง1.4.6 - audit log is mandatory, diff-only (never a full-object dump, never a password/token).
         _db.AuditLogs.Add(new AuditLog
         {
             LogCode = $"LOG-{DateTime.UtcNow:yyyyMMddHHmmss}",
@@ -379,10 +381,11 @@ public class AdminController : ControllerBase
 
         await _db.SaveChangesAsync();
 
-        // ง1.5 - notify the OLD official email if it changed (account-takeover defense).
+        // ยง1.5 - notify the OLD official email if it changed (account-takeover defense).
         // No email service is wired up yet in this project - logged instead, see reset-password's note.
-        if (dto?.OfficialEmail != null && !string.Equals(oldOfficialEmail, dto.OfficialEmail, StringComparison.OrdinalIgnoreCase))
-            Console.WriteLine($"[NOTIFY - email service not configured] Would email {oldOfficialEmail}: your ministry account email was changed to {dto.OfficialEmail}.");
+        if (dto?.OfficialEmail != null && !string.Equals(oldOfficialEmail, dto.OfficialEmail, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(oldOfficialEmail))
+            _ = _email.SendAsync(oldOfficialEmail, "Your EgyMediChain account email was changed",
+                $"<p>Your ministry account's official email was changed to <b>{dto.OfficialEmail}</b>.</p><p>If you didn't request this change, contact a SuperAdmin immediately.</p>");
 
         return Ok(new SystemUserListItemDto
         {
@@ -453,9 +456,6 @@ public class AdminController : ControllerBase
     // The frontend generates a CSPRNG one-time password client-side and sends it here as an
     // opaque value - we re-hash it (never re-derive/store it in reversible form) and never echo
     // it back in the response.
-    // NOTE: this project has no email service wired up yet (no Brevo/SMTP registered in
-    // Program.cs), so `sendCredentialsTo` is accepted and validated but the actual email dispatch
-    // is a TODO - for now the response tells the caller to deliver the password out-of-band.
     [HttpPost("users/{id:int}/reset-password")]
     public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetPasswordDto? dto)
     {
@@ -488,12 +488,21 @@ public class AdminController : ControllerBase
 
         await _db.SaveChangesAsync();
 
-        var targetEmail = dto.SendCredentialsTo == "personalEmail" ? u.PersonalEmail : u.PersonalEmail ?? u.Email;
+        // ยง5.4 - always deliver to the personal email, never the official/ministry inbox, since
+        // that's the one the employee might be locked out of.
+        var targetEmail = u.PersonalEmail ?? u.OfficialEmail ?? u.Email;
+        var emailSent = false;
+        if (!string.IsNullOrWhiteSpace(targetEmail))
+        {
+            _ = _email.SendAsync(targetEmail!, "Your EgyMediChain password was reset",
+                $"<p>An administrator reset your password.</p><p>Your new temporary password:</p><h3 style=\"letter-spacing:2px\">{dto.Password}</h3><p>Please sign in and change it as soon as possible. All your active sessions have been signed out.</p>");
+            emailSent = true;
+        }
+
         return Ok(new
         {
             message = "Password reset. Sessions revoked - user must sign in again with the new password.",
-            emailDispatchPending = true,
-            note = "No email provider is configured in this deployment yet - deliver the new password to the user out-of-band.",
+            emailSent,
             intendedRecipient = targetEmail
         });
     }
@@ -528,7 +537,7 @@ public class AdminController : ControllerBase
     }
     // SuperAdmin only (not MinistryAdmin) - this deactivates an account, so it's
     // deliberately a narrower permission than the rest of this controller.
-    // Soft delete (Backend Action Report ง5.2): permanently destroying a staff record breaks its
+    // Soft delete (Backend Action Report ยง5.2): permanently destroying a staff record breaks its
     // link to historical audit trail / batch approvals they may have signed off on, which is a
     // compliance risk for a regulated Ministry system. The row is kept, just flagged and hidden
     // from normal listing/lookup - the contract from the frontend's perspective is unchanged.

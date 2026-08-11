@@ -115,13 +115,13 @@ public class WarehouseDashboardController : ControllerBase
 
     // ---------------- Shipments Summary Cards ----------------
     [HttpGet("shipments/summary")]
-    public async Task<ActionResult<object>> GetShipmentsSummary(int warehouseId)
+    public async Task<ActionResult<WarehouseShipmentsSummaryDto>> GetShipmentsSummary(int warehouseId)
     {
         var warehouse = await GetWarehouseAsync(warehouseId);
         if (warehouse == null) return NotFound(new { message = "Warehouse not found." });
 
         var incomingQuery = _db.Shipments.Where(s => s.DestinationWarehouseId == warehouseId);
-        return Ok(new
+        return Ok(new WarehouseShipmentsSummaryDto
         {
             IncomingShipments = await incomingQuery.CountAsync(s => s.ShipmentStatus == ShipmentStatus.InTransit),
             PendingInspection = await incomingQuery.CountAsync(s => s.ShipmentStatus == ShipmentStatus.PendingInspection),
@@ -485,6 +485,91 @@ public class WarehouseDashboardController : ControllerBase
         return Ok(new PagedResult<AlertListItemDto> { Items = items, Page = page, PageSize = pageSize, TotalCount = total });
     }
 
+    // Scoped alert-status counts, independent of list pagination (Frontend Integration Audit,
+    // Remaining Gaps - Factory already had this; Warehouse didn't).
+    [HttpGet("alerts/counts")]
+    public async Task<ActionResult<FactoryAlertsCountsDto>> GetAlertsCounts(int warehouseId)
+    {
+        var warehouse = await GetWarehouseAsync(warehouseId);
+        if (warehouse == null) return NotFound(new { message = "Warehouse not found." });
+
+        var query = _db.Alerts.Where(a => a.EntityType == EntityKind.Warehouse && a.EntityName == warehouse.OfficialWarehouseName);
+        return Ok(new FactoryAlertsCountsDto
+        {
+            Open = await query.CountAsync(a => a.AlertStatus == AlertStatus.Open),
+            UnderReview = await query.CountAsync(a => a.AlertStatus == AlertStatus.UnderReview),
+            Resolved = await query.CountAsync(a => a.AlertStatus == AlertStatus.Resolved),
+            Dismissed = await query.CountAsync(a => a.AlertStatus == AlertStatus.Dismissed),
+            Total = await query.CountAsync()
+        });
+    }
+
+    // Alert detail fetch, scoped to this warehouse (Remaining Gaps - only Factory had this before;
+    // Warehouse/Pharmacy were opening alert details from the already-loaded list row).
+    [HttpGet("alerts/{alertId:int}")]
+    public async Task<ActionResult<AlertDetailsDto>> GetAlertDetails(int warehouseId, int alertId)
+    {
+        var warehouse = await GetWarehouseAsync(warehouseId);
+        if (warehouse == null) return NotFound(new { message = "Warehouse not found." });
+
+        var a = await _db.Alerts.Include(x => x.Batch).ThenInclude(b => b!.MedicineProduct).Include(x => x.Shipment)
+            .FirstOrDefaultAsync(x => x.Id == alertId && x.EntityType == EntityKind.Warehouse && x.EntityName == warehouse.OfficialWarehouseName);
+        if (a == null) return NotFound(new { message = "Alert not found for this warehouse." });
+
+        var isImpactful = a.AlertType is AlertType.Recall or AlertType.ComplianceIssue;
+        return Ok(new AlertDetailsDto
+        {
+            Id = a.Id,
+            AlertCode = a.AlertCode,
+            AlertType = a.AlertType?.ToString(),
+            Severity = a.Severity?.ToString(),
+            EntityType = a.EntityType?.ToString(),
+            EntityName = a.EntityName,
+            Message = a.Message,
+            ProductName = a.Batch?.MedicineProduct?.ProductName,
+            BatchNumber = a.Batch?.BatchNumber,
+            BatchId = a.BatchId,
+            ShipmentTransferCode = a.Shipment?.TransferCode,
+            ShipmentId = a.ShipmentId,
+            AlertStatus = a.AlertStatus?.ToString(),
+            CreatedAt = a.CreatedAt,
+            ResolvedAt = a.ResolvedAt,
+            ImpactedBatchStatus = isImpactful ? a.Batch?.BatchStatus?.ToString() : null,
+            ImpactedUnitCodesStatus = a.AlertType == AlertType.Recall ? "Recalled" : a.AlertType == AlertType.ComplianceIssue ? "Blocked" : null,
+            ImpactedInventoryStatus = a.AlertType == AlertType.Recall ? "Recalled" : a.AlertType == AlertType.ComplianceIssue ? "Blocked" : null,
+            BatchDispatchBlocked = isImpactful
+        });
+    }
+
+    // Warehouse-scoped pharmacy directory, for dispatch destination selection - mirrors the
+    // Factory→Warehouse directory (Remaining Gaps: "Warehouse→Pharmacy directory ... still calls
+    // the Admin-tagged GET /api/pharmacies").
+    [HttpGet("pharmacies")]
+    public async Task<ActionResult<PagedResult<PharmacyOptionDto>>> GetPharmaciesForDispatch(int warehouseId,
+        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    {
+        var warehouse = await GetWarehouseAsync(warehouseId);
+        if (warehouse == null) return NotFound(new { message = "Warehouse not found." });
+
+        var query = _db.Pharmacies.Where(p => p.PharmacyStatus == FacilityStatus.Active);
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(p => p.OfficialPharmacyName != null && p.OfficialPharmacyName.Contains(search));
+
+        var total = await query.CountAsync();
+        var items = await query.OrderBy(p => p.OfficialPharmacyName)
+            .Skip(Math.Max(0, (page - 1) * pageSize)).Take(pageSize <= 0 ? 50 : pageSize)
+            .Select(p => new PharmacyOptionDto
+            {
+                Id = p.Id,
+                PharmacyName = p.OfficialPharmacyName,
+                Governorate = p.Governorate,
+                City = p.City,
+                PharmacyStatus = p.PharmacyStatus.ToString()
+            }).ToListAsync();
+
+        return Ok(new PagedResult<PharmacyOptionDto> { Items = items, Page = page, PageSize = pageSize, TotalCount = total });
+    }
+
     // ---------------- Profile ----------------
     [HttpGet("profile")]
     public async Task<ActionResult<OperationalProfileDto>> GetProfile(int warehouseId)
@@ -568,6 +653,7 @@ public class WarehouseDashboardController : ControllerBase
     private static InventoryStockListItemDto ToInventoryListItem(InventoryStock i) => new()
     {
         Id = i.Id,
+        BatchId = i.BatchId,
         ProductName = i.Batch?.MedicineProduct?.ProductName,
         GTIN = i.Batch?.MedicineProduct?.GTIN,
         DosageForm = i.Batch?.MedicineProduct?.DosageForm,
@@ -611,4 +697,3 @@ public class WarehouseDashboardController : ControllerBase
         CreatedAt = DateTime.UtcNow
     };
 }
-

@@ -8,6 +8,10 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// QuestPDF requires a license type to be set once at startup - Community is free for this
+// project's use case (small org, non-commercial-scale). https://www.questpdf.com/license/
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 // ---- Services ----
 builder.Services.AddControllers().AddJsonOptions(o =>
 {
@@ -27,6 +31,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "EgyMediChain Ministry API", Version = "v1" });
+    c.SchemaFilter<EnumSchemaFilter>();
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -80,6 +85,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<IEmailService, BrevoEmailService>();
 
 builder.Services.AddCors(options =>
 {

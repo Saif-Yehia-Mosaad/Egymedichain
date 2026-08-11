@@ -1,4 +1,5 @@
-﻿using EgyMediChain.Domain.Enums;
+using EgyMediChain.Api.Dtos;
+using EgyMediChain.Domain.Enums;
 using EgyMediChain.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,7 @@ public class ShipmentsController : ControllerBase
     public ShipmentsController(AppDbContext db) => _db = db;
 
     [HttpGet("summary")]
-    public async Task<ActionResult<object>> GetSummary()
+    public async Task<ActionResult<ShipmentsSummaryDto>> GetSummary()
     {
         var scope = GetMinistryEntityScope();
         var query = _db.Shipments.AsQueryable();
@@ -31,7 +32,7 @@ public class ShipmentsController : ControllerBase
             _ => query
         };
 
-        return Ok(new
+        return Ok(new ShipmentsSummaryDto
         {
             TotalShipments = await query.CountAsync(),
             InTransit = await query.CountAsync(s => s.ShipmentStatus == ShipmentStatus.InTransit),

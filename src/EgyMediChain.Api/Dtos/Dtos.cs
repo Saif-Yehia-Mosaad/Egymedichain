@@ -1,3 +1,6 @@
+using EgyMediChain.Api.Common;
+using EgyMediChain.Domain.Enums;
+
 namespace EgyMediChain.Api.Dtos;
 
 // ---------------- Auth ----------------
@@ -15,6 +18,7 @@ public class LoginResponseDto
     public string? FullName { get; set; }
     public string? Email { get; set; }
     public string? Role { get; set; }
+    [DocumentedEnum(typeof(EntityKind))]
     public string? EntityType { get; set; }
     public int? EntityId { get; set; }
 }
@@ -54,10 +58,12 @@ public class RecentRegistrationRequestDto
 {
     public int Id { get; set; }
     public string? RequestCode { get; set; }
+    [DocumentedEnum(typeof(EntityKind))]
     public string? EntityType { get; set; }
     public string? EntityName { get; set; }
     public string? SubmittedBy { get; set; }
     public DateTime? SubmittedAt { get; set; }
+    [DocumentedEnum(typeof(RegistrationStatus))]
     public string? RegistrationStatus { get; set; }
 }
 
@@ -67,6 +73,7 @@ public class RecentAlertDto
     public string? AlertCode { get; set; }
     public string? AlertType { get; set; }
     public string? Severity { get; set; }
+    [DocumentedEnum(typeof(EntityKind))]
     public string? EntityType { get; set; }
     public string? BatchNumber { get; set; }
     public DateTime? CreatedAt { get; set; }
@@ -79,6 +86,7 @@ public class RecentBatchActivityDto
     public string? ProductName { get; set; }
     public string? BatchNumber { get; set; }
     public string? FactoryName { get; set; }
+    [DocumentedEnum(typeof(BatchStatus))]
     public string? BatchStatus { get; set; }
     public string? SupplyChainStage { get; set; }
     public DateTime? LastUpdated { get; set; }
@@ -89,6 +97,7 @@ public class RegistrationRequestListItemDto
 {
     public int Id { get; set; }
     public string? RequestCode { get; set; }
+    [DocumentedEnum(typeof(EntityKind))]
     public string? EntityType { get; set; }
     public string? EntityName { get; set; }
     public string? RepresentativeName { get; set; }
@@ -99,6 +108,7 @@ public class RegistrationRequestListItemDto
     public DateTime? SubmittedAt { get; set; }
     public bool? EmailConfirmed { get; set; }
     public string? DocumentsOverallStatus { get; set; }
+    [DocumentedEnum(typeof(RegistrationStatus))]
     public string? RegistrationStatus { get; set; }
 }
 
@@ -113,7 +123,7 @@ public class RegistrationRequestsCountsDto
     public int Cancelled { get; set; }
 }
 
-// PUT /api/admin/users/{id} - Edit Staff (Backend Action Report §1.3).
+// PUT /api/admin/users/{id} - Edit Staff (Backend Action Report ï¿½1.3).
 // NationalId and password fields are deliberately excluded - see AdminController for the
 // explicit 400 rejection if a client sends them anyway.
 public class UpdateMinistryAdminDto
@@ -132,7 +142,7 @@ public class UpdateMinistryAdminDto
     public DateTime? HireDate { get; set; }
     public string? InsuranceNumber { get; set; }
 
-    // Present only so the controller can detect and reject a misuse of this endpoint (§1.5) -
+    // Present only so the controller can detect and reject a misuse of this endpoint (ï¿½1.5) -
     // these are never applied even if sent.
     public string? NationalId { get; set; }
     public string? Password { get; set; }
@@ -144,7 +154,7 @@ public class GenericMessageResponseDto
     public string? Message { get; set; }
 }
 
-// ---- Forgot Password flow (Backend Action Report §2) ----
+// ---- Forgot Password flow (Backend Action Report ï¿½2) ----
 public class ForgotPasswordRequestDto
 {
     public string? Email { get; set; }
@@ -168,7 +178,7 @@ public class ResetPasswordWithTokenDto
     public string? NewPassword { get; set; }
 }
 
-// ---- Settings (Backend Action Report §3) ----
+// ---- Settings (Backend Action Report ï¿½3) ----
 public class NotificationPreferencesDto
 {
     public bool EmailAlerts { get; set; } = true;
@@ -204,12 +214,13 @@ public class SystemConfigDto
     public int SessionTimeoutMinutes { get; set; } = 60;
 }
 
-// ---- Reports (Backend Action Report §4) ----
+// ---- Reports (Backend Action Report ï¿½4) ----
 public class GenerateReportRequestDto
 {
     public string? ReportType { get; set; } // BatchTraceability | RecallSummary | InventorySnapshot | AuditTrailExport | StaffDirectory
     public DateTime? DateFrom { get; set; }
     public DateTime? DateTo { get; set; }
+    [DocumentedEnum(typeof(EntityKind))]
     public string? EntityType { get; set; }
     public int? EntityId { get; set; }
     public string? Format { get; set; } // only "Csv" is implemented for now - see ReportsController
@@ -222,6 +233,30 @@ public class ReportJobDto
     public DateTime? RequestedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? ErrorMessage { get; set; }
+}
+
+// GET /api/shipments/summary (national) - typed replacement for the previously untyped `object`
+// response (Remaining Gaps - "no response schema in the Swagger (just 200: OK)").
+public class ShipmentsSummaryDto
+{
+    public int TotalShipments { get; set; }
+    public int InTransit { get; set; }
+    public int Delivered { get; set; }
+    public int PartiallyReceived { get; set; }
+    public int Rejected { get; set; }
+    public int FactoryToWarehouse { get; set; }
+    public int WarehouseToPharmacy { get; set; }
+}
+
+// GET /api/warehouse-dashboard/{warehouseId}/shipments/summary - typed replacement (same gap,
+// warehouse-scoped variant).
+public class WarehouseShipmentsSummaryDto
+{
+    public int IncomingShipments { get; set; }
+    public int PendingInspection { get; set; }
+    public int Received { get; set; }
+    public int PartiallyReceived { get; set; }
+    public int Rejected { get; set; }
 }
 
 public class AccountInfoDto
@@ -294,6 +329,7 @@ public class RegistrationInfoDto
 {
     public string? RegistrationRequestNo { get; set; }
     public DateTime? SubmittedAt { get; set; }
+    [DocumentedEnum(typeof(RegistrationStatus))]
     public string? RegistrationStatus { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public string? ApprovedBy { get; set; }
@@ -318,6 +354,7 @@ public class FactoryProfileFullDto
     public string? FactoryName { get; set; }
     public string? FactoryCode { get; set; }
     public string? FactoryStatus { get; set; }
+    [DocumentedEnum(typeof(RegistrationStatus))]
     public string? RegistrationStatus { get; set; }
     public DateTime? MemberSince { get; set; }
     public AccountInfoDto? Account { get; set; }
@@ -345,8 +382,10 @@ public class RegistrationRequestDetailsDto
 {
     public int Id { get; set; }
     public string? RequestCode { get; set; }
+    [DocumentedEnum(typeof(EntityKind))]
     public string? EntityType { get; set; }
     public DateTime? SubmittedAt { get; set; }
+    [DocumentedEnum(typeof(RegistrationStatus))]
     public string? RegistrationStatus { get; set; }
     public string? AdminNotes { get; set; }
     public string? RejectionReason { get; set; }
@@ -384,6 +423,7 @@ public class EntityRegistrationRequestRefDto
 {
     public int Id { get; set; }
     public string? RequestCode { get; set; }
+    [DocumentedEnum(typeof(RegistrationStatus))]
     public string? RegistrationStatus { get; set; }
     public DateTime? SubmittedAt { get; set; }
 }
@@ -533,6 +573,7 @@ public class BatchListItemDto
     public long? Quantity { get; set; }
     public DateTime? ManufacturingDate { get; set; }
     public DateTime? ExpiryDate { get; set; }
+    [DocumentedEnum(typeof(BatchStatus))]
     public string? BatchStatus { get; set; }
     public string? SupplyChainStage { get; set; }
     public string? CurrentLocation { get; set; }
@@ -603,6 +644,7 @@ public class BatchInfoDto
     public long? Quantity { get; set; }
     public DateTime? ManufacturingDate { get; set; }
     public DateTime? ExpiryDate { get; set; }
+    [DocumentedEnum(typeof(BatchStatus))]
     public string? BatchStatus { get; set; }
     public string? SupplyChainStage { get; set; }
     public string? CreatedBy { get; set; }
@@ -630,6 +672,7 @@ public class ShipmentSummaryItemDto
     public string? Destination { get; set; }
     public long? ExpectedQuantity { get; set; }
     public long? ReceivedQuantity { get; set; }
+    [DocumentedEnum(typeof(ShipmentStatus))]
     public string? ShipmentStatus { get; set; }
     public DateTime? DispatchDate { get; set; }
     public DateTime? ReceivedDate { get; set; }
@@ -643,6 +686,7 @@ public class InventoryDistributionItemDto
     public long? AvailableQuantity { get; set; }
     public long? ReservedQuantity { get; set; }
     public long? QuarantinedQuantity { get; set; }
+    [DocumentedEnum(typeof(InventoryStatus))]
     public string? InventoryStatus { get; set; }
     public DateTime? LastUpdated { get; set; }
 }
@@ -680,6 +724,7 @@ public class AlertListItemDto
     public string? AlertCode { get; set; }
     public string? AlertType { get; set; }
     public string? Severity { get; set; }
+    [DocumentedEnum(typeof(EntityKind))]
     public string? EntityType { get; set; }
     public string? EntityName { get; set; }
     public string? ProductName { get; set; }
@@ -697,6 +742,7 @@ public class AlertDetailsDto
     public string? AlertCode { get; set; }
     public string? AlertType { get; set; }
     public string? Severity { get; set; }
+    [DocumentedEnum(typeof(EntityKind))]
     public string? EntityType { get; set; }
     public string? EntityName { get; set; }
     public string? Message { get; set; }
@@ -796,6 +842,7 @@ public class SystemUserListItemDto
     public string? Email { get; set; }
     public string? MobileNumber { get; set; }
     public string? Role { get; set; }
+    [DocumentedEnum(typeof(EntityKind))]
     public string? EntityType { get; set; }
     public int? EntityId { get; set; }
     public bool? EmailConfirmed { get; set; }
@@ -903,6 +950,7 @@ public class ShipmentListItemDto
     public long? ExpectedQuantity { get; set; }
     public long? ReceivedQuantity { get; set; }
     public bool? RequiresColdChain { get; set; }
+    [DocumentedEnum(typeof(ShipmentStatus))]
     public string? ShipmentStatus { get; set; }
     public DateTime? DispatchDate { get; set; }
     public DateTime? ReceivedDate { get; set; }
@@ -919,17 +967,23 @@ public class ShipmentDetailsDto
     public string? BatchNumber { get; set; }
     public long? ExpectedQuantity { get; set; }
     public long? ReceivedQuantity { get; set; }
+    [DocumentedEnum(typeof(ShipmentStatus))]
     public string? ShipmentStatus { get; set; }
     public bool? RequiresColdChain { get; set; }
     public DateTime? DispatchDate { get; set; }
     public DateTime? ReceivedDate { get; set; }
     public string? Notes { get; set; }
+    [DocumentedEnum(typeof(InspectionResult))]
     public string? InspectionResult { get; set; }
 }
 
 public class InventoryStockListItemDto
 {
     public int Id { get; set; }
+    // Numeric batch id, added so Inventory-originated issue reports can populate
+    // ReportIssueDto.batchId the same way Shipment-originated ones already do
+    // (Frontend Integration Audit, Remaining Gaps - "ReportIssueDto.batchId from Inventory").
+    public int? BatchId { get; set; }
     public string? ProductName { get; set; }
     public string? GTIN { get; set; }
     public string? DosageForm { get; set; }
@@ -942,6 +996,7 @@ public class InventoryStockListItemDto
     public long? QuarantinedQuantity { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public bool? RequiresColdChain { get; set; }
+    [DocumentedEnum(typeof(InventoryStatus))]
     public string? InventoryStatus { get; set; }
 }
 
@@ -1015,6 +1070,17 @@ public class WarehouseOptionDto
     public string? WarehouseStatus { get; set; }
 }
 
+// GET /api/warehouse-dashboard/{warehouseId}/pharmacies - thin, dispatch-destination-only
+// (Frontend Integration Audit, Remaining Gaps - Warehouseâ†’Pharmacy directory).
+public class PharmacyOptionDto
+{
+    public int Id { get; set; }
+    public string? PharmacyName { get; set; }
+    public string? Governorate { get; set; }
+    public string? City { get; set; }
+    public string? PharmacyStatus { get; set; }
+}
+
 public class CreateDispatchDto
 {
     public int? BatchId { get; set; }
@@ -1078,6 +1144,7 @@ public class WarehouseOverviewDto
 public class ReceiveShipmentDto
 {
     public long? ReceivedQuantity { get; set; }
+    [DocumentedEnum(typeof(InspectionResult))]
     public string? InspectionResult { get; set; } // Accepted / PartiallyAccepted / Rejected
     public string? Notes { get; set; }
 }
@@ -1114,4 +1181,3 @@ public class PharmacyOverviewDto
     public List<InventoryStockListItemDto>? CurrentStockSummary { get; set; }
     public List<AlertListItemDto>? RecentAlerts { get; set; }
 }
-

@@ -335,6 +335,61 @@ public class PharmacyDashboardController : ControllerBase
         return Ok(new PagedResult<AlertListItemDto> { Items = items, Page = page, PageSize = pageSize, TotalCount = total });
     }
 
+    // Scoped alert-status counts, independent of list pagination (Remaining Gaps - Factory
+    // already had this; Pharmacy didn't).
+    [HttpGet("alerts/counts")]
+    public async Task<ActionResult<FactoryAlertsCountsDto>> GetAlertsCounts(int pharmacyId)
+    {
+        var pharmacy = await GetPharmacyAsync(pharmacyId);
+        if (pharmacy == null) return NotFound(new { message = "Pharmacy not found." });
+
+        var query = _db.Alerts.Where(a => a.EntityType == EntityKind.Pharmacy && a.EntityName == pharmacy.OfficialPharmacyName);
+        return Ok(new FactoryAlertsCountsDto
+        {
+            Open = await query.CountAsync(a => a.AlertStatus == AlertStatus.Open),
+            UnderReview = await query.CountAsync(a => a.AlertStatus == AlertStatus.UnderReview),
+            Resolved = await query.CountAsync(a => a.AlertStatus == AlertStatus.Resolved),
+            Dismissed = await query.CountAsync(a => a.AlertStatus == AlertStatus.Dismissed),
+            Total = await query.CountAsync()
+        });
+    }
+
+    // Alert detail fetch, scoped to this pharmacy (Remaining Gaps - only Factory had this before).
+    [HttpGet("alerts/{alertId:int}")]
+    public async Task<ActionResult<AlertDetailsDto>> GetAlertDetails(int pharmacyId, int alertId)
+    {
+        var pharmacy = await GetPharmacyAsync(pharmacyId);
+        if (pharmacy == null) return NotFound(new { message = "Pharmacy not found." });
+
+        var a = await _db.Alerts.Include(x => x.Batch).ThenInclude(b => b!.MedicineProduct).Include(x => x.Shipment)
+            .FirstOrDefaultAsync(x => x.Id == alertId && x.EntityType == EntityKind.Pharmacy && x.EntityName == pharmacy.OfficialPharmacyName);
+        if (a == null) return NotFound(new { message = "Alert not found for this pharmacy." });
+
+        var isImpactful = a.AlertType is AlertType.Recall or AlertType.ComplianceIssue;
+        return Ok(new AlertDetailsDto
+        {
+            Id = a.Id,
+            AlertCode = a.AlertCode,
+            AlertType = a.AlertType?.ToString(),
+            Severity = a.Severity?.ToString(),
+            EntityType = a.EntityType?.ToString(),
+            EntityName = a.EntityName,
+            Message = a.Message,
+            ProductName = a.Batch?.MedicineProduct?.ProductName,
+            BatchNumber = a.Batch?.BatchNumber,
+            BatchId = a.BatchId,
+            ShipmentTransferCode = a.Shipment?.TransferCode,
+            ShipmentId = a.ShipmentId,
+            AlertStatus = a.AlertStatus?.ToString(),
+            CreatedAt = a.CreatedAt,
+            ResolvedAt = a.ResolvedAt,
+            ImpactedBatchStatus = isImpactful ? a.Batch?.BatchStatus?.ToString() : null,
+            ImpactedUnitCodesStatus = a.AlertType == AlertType.Recall ? "Recalled" : a.AlertType == AlertType.ComplianceIssue ? "Blocked" : null,
+            ImpactedInventoryStatus = a.AlertType == AlertType.Recall ? "Recalled" : a.AlertType == AlertType.ComplianceIssue ? "Blocked" : null,
+            BatchDispatchBlocked = isImpactful
+        });
+    }
+
     // ---------------- Profile ----------------
     [HttpGet("profile")]
     public async Task<ActionResult<OperationalProfileDto>> GetProfile(int pharmacyId)
@@ -418,6 +473,7 @@ public class PharmacyDashboardController : ControllerBase
     private static InventoryStockListItemDto ToInventoryListItem(InventoryStock i) => new()
     {
         Id = i.Id,
+        BatchId = i.BatchId,
         ProductName = i.Batch?.MedicineProduct?.ProductName,
         GTIN = i.Batch?.MedicineProduct?.GTIN,
         DosageForm = i.Batch?.MedicineProduct?.DosageForm,
@@ -461,4 +517,3 @@ public class PharmacyDashboardController : ControllerBase
         CreatedAt = DateTime.UtcNow
     };
 }
-
